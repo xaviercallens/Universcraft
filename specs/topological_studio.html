@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HoloEngine Studio — Simulateur de Mondes Topologiques</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #06080d;
+            --panel-bg: rgba(12, 16, 28, 0.88);
+            --panel-border: rgba(64, 80, 120, 0.25);
+            --accent-cyan: #00f2fe;
+            --accent-blue: #4facfe;
+            --accent-purple: #7f00ff;
+            --accent-pink: #e100ff;
+            --accent-green: #00ff87;
+            --text-main: #f0f4fc;
+            --text-muted: #6a7a96;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        /* HEADER */
+        header {
+            height: 48px;
+            background: rgba(6, 8, 13, 0.95);
+            border-bottom: 1px solid var(--panel-border);
+            display: flex;
+            align-items: center;
+            padding: 0 1rem;
+            gap: 1rem;
+            backdrop-filter: blur(12px);
+            z-index: 100;
+        }
+        .logo {
+            width: 28px; height: 28px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 0.9rem; color: #000;
+            box-shadow: 0 0 12px rgba(0,242,254,0.4);
+        }
+        header h1 {
+            font-size: 1rem; font-weight: 600; letter-spacing: 0.5px;
+            background: linear-gradient(90deg, #fff, var(--text-muted));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .header-badge {
+            margin-left: auto;
+            background: rgba(0,255,135,0.12);
+            border: 1px solid var(--accent-green);
+            color: var(--accent-green);
+            padding: 0.15rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        /* MAIN LAYOUT */
+        .app-layout {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+        /* LEFT SIDEBAR */
+        .sidebar {
+            width: 300px;
+            background: var(--panel-bg);
+            border-right: 1px solid var(--panel-border);
+            overflow-y: auto;
+            padding: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .sidebar::-webkit-scrollbar { width: 4px; }
+        .sidebar::-webkit-scrollbar-thumb { background: var(--panel-border); border-radius: 2px; }
+        .section {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--panel-border);
+            border-radius: 10px;
+            padding: 0.75rem;
+        }
+        .section-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--accent-cyan);
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 0.6rem;
+            display: flex; align-items: center; gap: 0.4rem;
+        }
+        .section-title::before {
+            content: ''; width: 6px; height: 6px;
+            border-radius: 50%; background: var(--accent-cyan);
+            box-shadow: 0 0 6px var(--accent-cyan);
+        }
+        .param-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.4rem;
+        }
+        .param-label {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }
+        .param-value {
+            font-size: 0.78rem;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-main);
+            min-width: 50px;
+            text-align: right;
+        }
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--accent-cyan);
+            margin-top: 0.2rem;
+            height: 4px;
+        }
+        select, button {
+            width: 100%;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid var(--panel-border);
+            color: var(--text-main);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            padding: 0.45rem 0.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        select:hover, button:hover {
+            border-color: var(--accent-cyan);
+            background: rgba(0,242,254,0.08);
+        }
+        .btn-generate {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            color: #000;
+            font-weight: 700;
+            font-size: 0.85rem;
+            font-family: 'Outfit', sans-serif;
+            padding: 0.6rem;
+            border: none;
+            border-radius: 8px;
+            letter-spacing: 0.5px;
+            box-shadow: 0 0 20px rgba(0,242,254,0.3);
+            transition: all 0.3s;
+        }
+        .btn-generate:hover {
+            box-shadow: 0 0 30px rgba(0,242,254,0.5);
+            transform: translateY(-1px);
+        }
+        .btn-mine {
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-pink));
+            color: #fff; font-weight: 600; border: none;
+        }
+        /* VIEWPORT */
+        .viewport {
+            flex: 1;
+            position: relative;
+            background: radial-gradient(ellipse at 50% 40%, rgba(0,242,254,0.04) 0%, transparent 60%),
+                        radial-gradient(ellipse at 80% 80%, rgba(127,0,255,0.04) 0%, transparent 50%),
+                        var(--bg-dark);
+        }
+        #main-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: crosshair;
+        }
+        /* OVERLAY HUD */
+        .hud-top {
+            position: absolute; top: 12px; left: 12px;
+            display: flex; gap: 0.5rem;
+        }
+        .hud-chip {
+            background: rgba(6,8,13,0.85);
+            border: 1px solid var(--panel-border);
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-family: 'JetBrains Mono', monospace;
+            backdrop-filter: blur(8px);
+        }
+        .hud-bottom {
+            position: absolute; bottom: 12px; left: 12px; right: 12px;
+            display: flex; gap: 0.5rem; flex-wrap: wrap;
+        }
+        .hud-metric {
+            background: rgba(6,8,13,0.85);
+            border: 1px solid var(--panel-border);
+            padding: 0.35rem 0.7rem;
+            border-radius: 8px;
+            backdrop-filter: blur(8px);
+        }
+        .hud-metric .val {
+            font-size: 1rem; font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .hud-metric .lbl {
+            font-size: 0.6rem; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        /* RIGHT PANEL */
+        .right-panel {
+            width: 260px;
+            background: var(--panel-bg);
+            border-left: 1px solid var(--panel-border);
+            padding: 0.75rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .topo-chip {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-family: 'JetBrains Mono', monospace;
+            margin: 0.1rem;
+        }
+        .json-box {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid var(--panel-border);
+            border-radius: 6px;
+            padding: 0.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            color: var(--accent-green);
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 180px;
+            overflow-y: auto;
+        }
+        .mini-canvas {
+            width: 100%;
+            height: 120px;
+            border-radius: 6px;
+            border: 1px solid var(--panel-border);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">H</div>
+        <h1>HoloEngine Studio — Simulateur de Mondes Topologiques</h1>
+        <div class="header-badge">✓ Zero-Sorry Engine v2.0</div>
+    </header>
+
+    <div class="app-layout">
+        <!-- LEFT SIDEBAR: Parameters -->
+        <div class="sidebar">
+            <div class="section">
+                <div class="section-title">Preset de Monde</div>
+                <select id="preset-select">
+                    <option value="organic">🌿 Terrain Organique (DONN)</option>
+                    <option value="ocean">🌊 Océan Quantique (SPH)</option>
+                    <option value="tdual">⚛️ Singularité T-Duale</option>
+                    <option value="mesh">🕸️ Maillage Cybernétique (TDA)</option>
+                </select>
+            </div>
+
+            <div class="section">
+                <div class="section-title">Physique Universelle</div>
+                <div class="param-row">
+                    <span class="param-label">α' (String Scale)</span>
+                    <span class="param-value" id="v-alpha">1.00</span>
+                </div>
+                <input type="range" id="s-alpha" min="0.1" max="5" step="0.05" value="1">
+                <div class="param-row">
+                    <span class="param-label">Enstrophie Cap E_max</span>
+                    <span class="param-value" id="v-enstrophy">25.0</span>
+                </div>
+                <input type="range" id="s-enstrophy" min="1" max="100" step="1" value="25">
+                <div class="param-row">
+                    <span class="param-label">Borne 1-Lipschitz L_max</span>
+                    <span class="param-value" id="v-lipschitz">1.00</span>
+                </div>
+                <input type="range" id="s-lipschitz" min="0.1" max="3" step="0.05" value="1">
+                <div class="param-row">
+                    <span class="param-label">ε Filtration TDA</span>
+                    <span class="param-value" id="v-epsilon">4.50</span>
+                </div>
+                <input type="range" id="s-epsilon" min="0.5" max="12" step="0.1" value="4.5">
+            </div>
+
+            <div class="section">
+                <div class="section-title">Terrain DONN</div>
+                <div class="param-row">
+                    <span class="param-label">Harmoniques</span>
+                    <span class="param-value" id="v-harmonics">3</span>
+                </div>
+                <input type="range" id="s-harmonics" min="1" max="8" step="1" value="3">
+                <div class="param-row">
+                    <span class="param-label">Fréquence (Hz)</span>
+                    <span class="param-value" id="v-freq">1.0</span>
+                </div>
+                <input type="range" id="s-freq" min="0.1" max="5" step="0.1" value="1">
+                <div class="param-row">
+                    <span class="param-label">Amplitude</span>
+                    <span class="param-value" id="v-amp">1.0</span>
+                </div>
+                <input type="range" id="s-amp" min="0.1" max="3" step="0.05" value="1">
+            </div>
+
+            <div class="section">
+                <div class="section-title">Fluide SPH</div>
+                <div class="param-row">
+                    <span class="param-label">Particules</span>
+                    <span class="param-value" id="v-particles">200</span>
+                </div>
+                <input type="range" id="s-particles" min="50" max="800" step="10" value="200">
+                <div class="param-row">
+                    <span class="param-label">Gravité (m/s²)</span>
+                    <span class="param-value" id="v-gravity">9.81</span>
+                </div>
+                <input type="range" id="s-gravity" min="0" max="30" step="0.1" value="9.81">
+            </div>
+
+            <button class="btn-generate" id="btn-generate">▶ GÉNÉRER LE MONDE</button>
+            <button class="btn-mine" id="btn-mine">⛏ MODE MINAGE 1-LIPSCHITZ</button>
+        </div>
+
+        <!-- CENTER VIEWPORT -->
+        <div class="viewport">
+            <canvas id="main-canvas"></canvas>
+            <div class="hud-top">
+                <div class="hud-chip" id="hud-mode" style="color:#00f2fe;">MODE: CONTINUOUS_SDF</div>
+                <div class="hud-chip" id="hud-fps" style="color:#00ff87;">60.0 FPS</div>
+                <div class="hud-chip" id="hud-preset">🌿 Organique</div>
+            </div>
+            <div class="hud-bottom">
+                <div class="hud-metric"><div class="val" style="color:#00f2fe;" id="hm-betti">B0:1 B1:12 B2:3</div><div class="lbl">Betti TDA</div></div>
+                <div class="hud-metric"><div class="val" style="color:#00ff87;" id="hm-enstrophy">25.0 / 25.0</div><div class="lbl">Enstrophie E/E_max</div></div>
+                <div class="hud-metric"><div class="val" style="color:#e100ff;" id="hm-particles">200</div><div class="lbl">Particules</div></div>
+                <div class="hud-metric"><div class="val" style="color:#4facfe;" id="hm-reff">15.00</div><div class="lbl">R_eff T-Dual</div></div>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL: Topology & Telemetry -->
+        <div class="right-panel">
+            <div class="section">
+                <div class="section-title">Topologie Persistante</div>
+                <canvas id="persistence-canvas" class="mini-canvas"></canvas>
+            </div>
+            <div class="section">
+                <div class="section-title">Invariants Validés</div>
+                <div id="invariant-chips">
+                    <div class="topo-chip" style="background:rgba(0,255,135,0.15);color:#00ff87;">✓ 1-Lipschitz</div>
+                    <div class="topo-chip" style="background:rgba(0,242,254,0.15);color:#00f2fe;">✓ Leray Solenoidal</div>
+                    <div class="topo-chip" style="background:rgba(127,0,255,0.15);color:#7f00ff;">✓ K3 Enstrophy</div>
+                    <div class="topo-chip" style="background:rgba(225,0,255,0.15);color:#e100ff;">✓ T-Dual Bound</div>
+                </div>
+            </div>
+            <div class="section">
+                <div class="section-title">Spectre d'Ondes DONN</div>
+                <canvas id="wave-canvas" class="mini-canvas"></canvas>
+            </div>
+            <div class="section">
+                <div class="section-title">Télémétrie JSON</div>
+                <div class="json-box" id="json-output">{
+  "fps": 60.0,
+  "betti_0": 1,
+  "betti_1": 12,
+  "betti_2": 3,
+  "enstrophy": 25.0
+}</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="topological_studio_engine.js"></script>
+</body>
+</html>
