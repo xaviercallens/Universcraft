@@ -1,0 +1,39 @@
+# HoloEngine 3D - GCP NVIDIA T4 GPU Headless & WebGPU Deployment Container
+FROM nvidia/cuda:12.2.2-devel-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV RUSTUP_HOME=/usr/local/rustup
+ENV CARGO_HOME=/usr/local/cargo
+ENV PATH=/usr/local/cargo/bin:$PATH
+
+# Install system dependencies, Vulkan SDK & NVIDIA headless GL/VK libraries
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    libvulkan-dev \
+    vulkan-tools \
+    mesa-vulkan-drivers \
+    libx11-dev \
+    libxcursor-dev \
+    libxrandr-dev \
+    libxi-dev \
+    libasound2-dev \
+    libudev-dev \
+    git \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust toolchain
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+
+WORKDIR /app
+COPY . .
+
+# Build HoloEngine release binary with GPU features
+RUN cargo build --release --bin amcp_agent_daemon --bin poc2_runner
+
+EXPOSE 8080 9090
+
+CMD ["./target/release/poc2_runner"]
