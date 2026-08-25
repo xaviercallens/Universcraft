@@ -167,5 +167,25 @@ mod tests {
         let enstrophy = 0.5 * (updated_particle.velocity.0.powi(2) + updated_particle.velocity.1.powi(2) + updated_particle.velocity.2.powi(2));
         assert!(enstrophy <= params.enstrophy_cap + 0.001, "Enstrophy must be bounded by E_max (25.0)");
     }
+
+    #[test]
+    fn test_gpu_instancing_and_post_processing_config() {
+        use holo_engine::engine::renderer::{TopologicalRenderPipeline, GPUInstanceTransform};
+
+        let mut pipeline = TopologicalRenderPipeline::new(1.0);
+        assert!(pipeline.post_processing.enable_ssao, "SSAO must be enabled by default");
+        assert!(pipeline.post_processing.tonemapping_aces, "ACES tonemapping must be enabled");
+
+        pipeline.flora_instance_buffer.push_instance(GPUInstanceTransform {
+            position: [1.0, 2.0, 3.0],
+            scale: [1.0, 1.0, 1.0],
+            rotation: [0.0, 0.0, 0.0, 1.0],
+            color_tint: [0.1, 0.8, 0.2, 1.0],
+        });
+
+        assert_eq!(pipeline.flora_instance_buffer.instance_count, 1);
+        pipeline.flora_instance_buffer.clear();
+        assert_eq!(pipeline.flora_instance_buffer.instance_count, 0);
+    }
 }
 

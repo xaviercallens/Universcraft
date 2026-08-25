@@ -28,11 +28,69 @@ impl Default for TopologicalCamera {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PostProcessingConfig {
+    pub enable_ssao: bool,
+    pub enable_bloom: bool,
+    pub bloom_intensity: f32,
+    pub tonemapping_aces: bool,
+    pub enable_cascaded_shadows: bool,
+    pub shadow_map_resolution: u32,
+}
+
+impl Default for PostProcessingConfig {
+    fn default() -> Self {
+        Self {
+            enable_ssao: true,
+            enable_bloom: true,
+            bloom_intensity: 0.15,
+            tonemapping_aces: true,
+            enable_cascaded_shadows: true,
+            shadow_map_resolution: 2048,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct GPUInstanceTransform {
+    pub position: [f32; 3],
+    pub scale: [f32; 3],
+    pub rotation: [f32; 4], // Quaternion
+    pub color_tint: [f32; 4],
+}
+
+#[derive(Debug, Clone)]
+pub struct GPUInstanceBuffer {
+    pub instance_count: usize,
+    pub transforms: Vec<GPUInstanceTransform>,
+}
+
+impl GPUInstanceBuffer {
+    pub fn new() -> Self {
+        Self {
+            instance_count: 0,
+            transforms: Vec::new(),
+        }
+    }
+
+    pub fn push_instance(&mut self, transform: GPUInstanceTransform) {
+        self.transforms.push(transform);
+        self.instance_count += 1;
+    }
+
+    pub fn clear(&mut self) {
+        self.transforms.clear();
+        self.instance_count = 0;
+    }
+}
+
 pub struct TopologicalRenderPipeline {
     pub alpha_prime: f32,
     pub camera: TopologicalCamera,
     pub active_mode: RenderMode,
     pub effective_r: f32,
+    pub post_processing: PostProcessingConfig,
+    pub flora_instance_buffer: GPUInstanceBuffer,
 }
 
 impl TopologicalRenderPipeline {
@@ -42,6 +100,8 @@ impl TopologicalRenderPipeline {
             camera: TopologicalCamera::default(),
             active_mode: RenderMode::ContinuousRayMarch,
             effective_r: 15.0,
+            post_processing: PostProcessingConfig::default(),
+            flora_instance_buffer: GPUInstanceBuffer::new(),
         }
     }
 
