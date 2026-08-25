@@ -79,23 +79,23 @@ impl SDFTerrainGenerator {
     /// Generates a Bevy Mesh for a specific chunk offset
     pub fn generate_chunk_mesh(&self, offset_x: f32, offset_y: f32, offset_z: f32, craters: &[(Vec3, f32)]) -> Mesh {
         let mut voxel_data = vec![0.0f32; ChunkShape::SIZE as usize];
-        
         let chunk_res = 34; // ChunkShape dimensions
-        
-        // Populate SDF voxel grid
-        for z in 0..chunk_res {
-            for y in 0..chunk_res {
-                for x in 0..chunk_res {
-                    let world_x = offset_x + (x as f32 - 1.0) * self.voxel_size;
-                    let world_y = offset_y + (y as f32 - 1.0) * self.voxel_size;
-                    let world_z = offset_z + (z as f32 - 1.0) * self.voxel_size;
-                    
-                    let sdf_val = Self::evaluate_sdf(world_x, world_y, world_z, craters);
-                    let idx = ChunkShape::linearize([x, y, z]) as usize;
-                    voxel_data[idx] = sdf_val;
-                }
+
+        // Parallelize voxel data generation using Rayon for local CPU acceleration
+        use rayon::prelude::*;
+        voxel_data.par_chunks_mut(chunk_res as usize).enumerate().for_each(|(z_y_idx, slice)| {
+            let z = (z_y_idx / chunk_res as usize) as u32;
+            let y = (z_y_idx % chunk_res as usize) as u32;
+            for x in 0..chunk_res {
+                let world_x = offset_x + (x as f32 - 1.0) * self.voxel_size;
+                let world_y = offset_y + (y as f32 - 1.0) * self.voxel_size;
+                let world_z = offset_z + (z as f32 - 1.0) * self.voxel_size;
+                
+                let sdf_val = Self::evaluate_sdf(world_x, world_y, world_z, craters);
+                slice[x as usize] = sdf_val;
             }
-        }
+        });
+
         
         let mut buffer = SurfaceNetsBuffer::default();
         surface_nets(
