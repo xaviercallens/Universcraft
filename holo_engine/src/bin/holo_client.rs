@@ -141,6 +141,7 @@ fn setup_scene(
     }
 }
 
+#[cfg(feature = "full")]
 use bevy::input::mouse::MouseMotion;
 
 #[cfg(feature = "full")]

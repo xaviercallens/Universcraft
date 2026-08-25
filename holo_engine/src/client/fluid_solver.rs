@@ -88,4 +88,28 @@ impl SymplecticFluidSolver {
             particle.position.2 += particle.velocity.2 * dt;
         }
     }
+
+    /// Parallelized multi-threaded fluid step execution using Rayon
+    pub fn step_parallel(&mut self, dt: f32) {
+        use rayon::prelude::*;
+        let params = self.params;
+
+        self.particles.par_iter_mut().for_each(|particle| {
+            particle.pressure = Self::compute_tait_pressure_with_params(&params, particle.density);
+            
+            // Gravity vector
+            particle.velocity.1 -= 9.81 * dt;
+
+            // Enforce Leray-Hopf solenoidal projection and enstrophy bound
+            particle.velocity = Self::apply_leray_solenoidal_projection(
+                particle.velocity,
+                params.enstrophy_cap,
+            );
+
+            // Symplectic Euler Integration
+            particle.position.0 += particle.velocity.0 * dt;
+            particle.position.1 += particle.velocity.1 * dt;
+            particle.position.2 += particle.velocity.2 * dt;
+        });
+    }
 }

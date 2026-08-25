@@ -4,6 +4,45 @@
 #[cfg(feature = "full")]
 use bevy::prelude::*;
 
+#[cfg(not(feature = "full"))]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Vec3 {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
+
+#[cfg(not(feature = "full"))]
+impl Vec3 {
+    pub const ZERO: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 };
+    pub const Y: Vec3 = Vec3 { x: 0.0, y: 1.0, z: 0.0 };
+
+    pub fn new(x: f32, y: f32, z: f32) -> Self {
+        Vec3 { x, y, z }
+    }
+
+    pub fn normalize(self) -> Self {
+        let len = (self.x * self.x + self.y * self.y + self.z * self.z).sqrt().max(0.0001);
+        Vec3 { x: self.x / len, y: self.y / len, z: self.z / len }
+    }
+}
+
+#[cfg(not(feature = "full"))]
+impl std::ops::Add for Vec3 {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self {
+        Vec3 { x: self.x + rhs.x, y: self.y + rhs.y, z: self.z + rhs.z }
+    }
+}
+
+#[cfg(not(feature = "full"))]
+impl std::ops::Mul<f32> for Vec3 {
+    type Output = Self;
+    fn mul(self, rhs: f32) -> Self {
+        Vec3 { x: self.x * rhs, y: self.y * rhs, z: self.z * rhs }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BiomeType {
     Desert,

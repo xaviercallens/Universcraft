@@ -187,5 +187,26 @@ mod tests {
         pipeline.flora_instance_buffer.clear();
         assert_eq!(pipeline.flora_instance_buffer.instance_count, 0);
     }
+
+    #[test]
+    fn test_parallel_sph_fluid_solver() {
+        use holo_engine::client::fluid_solver::{SymplecticFluidSolver, SPHParams, FluidParticle};
+
+        let params = SPHParams::default();
+        let particles = (0..100).map(|i| FluidParticle {
+            position: (i as f32 * 0.1, 5.0, 0.0),
+            velocity: (5.0, 5.0, 5.0),
+            density: 1020.0,
+            pressure: 0.0,
+            mass: 1.0,
+        }).collect();
+
+        let mut solver = SymplecticFluidSolver::new(params, particles);
+        solver.step_parallel(0.016);
+        assert_eq!(solver.particles.len(), 100);
+        let updated_p = &solver.particles[0];
+        let enstrophy = 0.5 * (updated_p.velocity.0.powi(2) + updated_p.velocity.1.powi(2) + updated_p.velocity.2.powi(2));
+        assert!(enstrophy <= params.enstrophy_cap + 0.001);
+    }
 }
 
