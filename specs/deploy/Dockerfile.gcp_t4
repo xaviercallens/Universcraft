@@ -31,8 +31,8 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --de
 WORKDIR /app
 COPY . .
 
-# Build HoloEngine release binary with GPU features
-RUN cargo build --release --bin amcp_agent_daemon --bin poc2_runner
+# Build HoloEngine release binaries with GPU features
+RUN cd holo_engine && cargo build --release --bin amcp_agent_daemon --bin poc2_runner --bin gpu_validation_runner --features full
 
 EXPOSE 8080 9090
 
