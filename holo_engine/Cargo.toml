@@ -5,18 +5,29 @@ edition = "2024"
 
 [dependencies]
 bevy = { version = "0.14", default-features = false, features = ["bevy_asset", "bevy_render", "bevy_core_pipeline", "bevy_pbr", "bevy_winit", "x11", "tonemapping_luts"], optional = true }
-fast-surface-nets = { path = "../repos/fast-surface-nets-rs", optional = true }
+fast-surface-nets = { version = "0.2", optional = true }
 burn = { version = "0.14.0", optional = true }
-salva3d = { path = "../repos/salva/build/salva3d", optional = true }
+salva3d = { version = "0.10", optional = true }
 tokio = { version = "1.38", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 rand = "0.8"
 rayon = "1.10"
+bytemuck = { version = "1.16", features = ["derive"] }
+
+wgpu = { version = "0.20", optional = true }
+pollster = "0.3"
+axum = "0.7"
+tower-http = { version = "0.5", features = ["fs", "cors"] }
+image = "0.24"
+ndarray = "0.17.2"
+petgraph = "0.8.3"
+nalgebra = "0.35.0"
 
 [features]
 default = []
-full = ["dep:bevy", "dep:fast-surface-nets", "dep:burn", "dep:salva3d"]
+wgpu = ["dep:wgpu"]
+full = ["dep:bevy", "dep:fast-surface-nets", "dep:burn", "dep:salva3d", "dep:wgpu"]
 
 [dev-dependencies]
 criterion = "0.5"

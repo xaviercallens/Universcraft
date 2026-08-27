@@ -111,3 +111,245 @@ impl GPUComputeManager {
         voxels
     }
 }
+
+impl GPUComputeManager {
+    pub async fn execute_advanced_scene_pass(
+        &self,
+        width: u32,
+        height: u32,
+        scene_id: &str,
+    ) -> Result<(wgpu::AdapterInfo, f32, Vec<u32>), String> {
+        let instance = wgpu::Instance::default();
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::HighPerformance,
+                compatible_surface: None,
+                force_fallback_adapter: false,
+            })
+            .await
+            .ok_or_else(|| "No GPU adapter found".to_string())?;
+
+        let adapter_info = adapter.get_info();
+        let (device, queue) = adapter
+            .request_device(
+                &wgpu::DeviceDescriptor {
+                    label: Some("HoloEngine Advanced Scene Device"),
+                    required_features: wgpu::Features::empty(),
+                    required_limits: wgpu::Limits::default(),
+                },
+                None,
+            )
+            .await
+            .map_err(|e| format!("Failed to request WGPU device: {}", e))?;
+
+        let shader_code = crate::client::advanced_scenes::get_advanced_scene_wgsl(scene_id);
+        
+        let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("ADVANCED_SCENE_WGSL"),
+            source: wgpu::ShaderSource::Wgsl(shader_code.into()),
+        });
+
+        let total_pixels = (width * height) as usize;
+        let output_buffer_size = (total_pixels * std::mem::size_of::<u32>()) as u64;
+
+        let output_storage_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Raymarch Color Storage Buffer"),
+            size: output_buffer_size,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+            mapped_at_creation: false,
+        });
+
+        let readback_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Raymarch Color Readback Buffer"),
+            size: output_buffer_size,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        // Default camera
+        let mut camera_pos = [0.0f32, 2.0, -10.0];
+        let mut camera_dir = [0.0f32, -0.2, 1.0];
+        let mut camera_up = [0.0f32, 1.0, 0.0];
+        let mut fov = 90.0f32;
+        let mut max_dist = 100.0f32;
+
+        match scene_id {
+            "earth_orbit" => {
+                camera_pos = [0.0, 6400.0, 12000.0];
+                camera_dir = [0.0, -0.0024, -1.0];
+                fov = 45.0;
+                max_dist = 20000.0;
+            },
+            "continental_biomes" => {
+                camera_pos = [120.0, 15.0, 300.0];
+                camera_dir = [-0.371, -0.031, -0.928];
+                fov = 65.0;
+                max_dist = 1000.0;
+            },
+            "arctic_aurora" => {
+                camera_pos = [0.0, 8.0, 45.0];
+                camera_dir = [0.0, -0.041, -0.999];
+                fov = 75.0;
+                max_dist = 300.0;
+            },
+            "volcanic_crystal_cave" => {
+                camera_pos = [-15.0, 10.0, 80.0];
+                camera_dir = [0.181, -0.181, -0.967];
+                fov = 55.0;
+                max_dist = 200.0;
+            },
+            "floating_archipelago" => {
+                camera_pos = [200.0, 150.0, 500.0];
+                camera_dir = [-0.365, -0.182, -0.913];
+                fov = 50.0;
+                max_dist = 1500.0;
+            },
+            "black_hole" => {
+                camera_pos = [0.0, 3.0, -15.0];
+                camera_dir = [0.0, -0.15, 1.0];
+                max_dist = 200.0;
+            },
+            _ => {}
+        }
+
+        // RaymarchParams struct matches the uniform in WGSL
+        #[repr(C)]
+        #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+        struct RaymarchParamsUniform {
+            pub camera_pos: [f32; 3],
+            pub fov: f32,
+            pub camera_dir: [f32; 3],
+            pub screen_width: u32,
+            pub camera_up: [f32; 3],
+            pub screen_height: u32,
+            pub max_steps: u32,
+            pub max_dist: f32,
+            pub _pad0: u32,
+            pub _pad1: u32,
+        }
+
+        let total_pixels = width * height;
+        let dynamic_max_steps = if total_pixels > 4_000_000 {
+            15 // VERY LOW to prevent TDR on 4K
+        } else if total_pixels > 2_000_000 {
+            30 // Reduced to prevent 1080p timeouts
+        } else {
+            60 // Reduced to prevent 720p timeouts
+        };
+
+        let params = RaymarchParamsUniform {
+            camera_pos,
+            fov,
+            camera_dir,
+            screen_width: width,
+            camera_up,
+            screen_height: height,
+            max_steps: dynamic_max_steps,
+            max_dist,
+            _pad0: 0,
+            _pad1: 0,
+        };
+
+        use wgpu::util::DeviceExt;
+        let params_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Raymarch Params Uniform Buffer"),
+            contents: bytemuck::cast_slice(&[params]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Raymarch Bind Group Layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Raymarch Bind Group"),
+            layout: &bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: params_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: output_storage_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Raymarch Pipeline Layout"),
+            bind_group_layouts: &[&bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        let compute_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("Raymarch Compute Pipeline"),
+            layout: Some(&pipeline_layout),
+            module: &shader_module,
+            entry_point: "raymarch_main",
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+        });
+
+        let start_time = std::time::Instant::now();
+
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Raymarch Command Encoder"),
+        });
+
+        {
+            let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("Raymarch Compute Pass"),
+                timestamp_writes: None,
+            });
+            compute_pass.set_pipeline(&compute_pipeline);
+            compute_pass.set_bind_group(0, &bind_group, &[]);
+            let wg_x = (width + 15) / 16;
+            let wg_y = (height + 15) / 16;
+            compute_pass.dispatch_workgroups(wg_x, wg_y, 1);
+        }
+
+        encoder.copy_buffer_to_buffer(&output_storage_buffer, 0, &readback_buffer, 0, output_buffer_size);
+        queue.submit(Some(encoder.finish()));
+
+        let buffer_slice = readback_buffer.slice(..);
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
+            let _ = tx.send(result);
+        });
+
+        device.poll(wgpu::Maintain::Wait);
+        let map_res = rx.await.map_err(|e| e.to_string())?;
+        map_res.map_err(|e| format!("Buffer map failed: {:?}", e))?;
+
+        let gpu_duration_ms = start_time.elapsed().as_secs_f32() * 1000.0;
+        let data = buffer_slice.get_mapped_range();
+        let pixels: Vec<u32> = bytemuck::cast_slice(&data).to_vec();
+        
+        drop(data);
+        readback_buffer.unmap();
+
+        Ok((adapter_info, gpu_duration_ms, pixels))
+    }
+}

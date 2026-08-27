@@ -259,5 +259,72 @@ mod tests {
         let max_z = positions.iter().map(|p| p.z).fold(f32::NEG_INFINITY, f32::max);
         assert!(max_z - min_z > 0.01, "3D L-System tree must branch across Z axis, span = {}", max_z - min_z);
     }
+
+    #[test]
+    fn test_schwarzschild_kerr_event_horizon_and_redshift() {
+        use holo_engine::client::astrophysics::{SchwarzschildKerrMetric, SOLAR_MASS};
+
+        let metric = SchwarzschildKerrMetric::new(10.0 * SOLAR_MASS, 0.0);
+        let r_s = metric.schwarzschild_radius();
+        let r_h = metric.event_horizon_radius();
+        let r_ph = metric.photon_sphere_radius();
+
+        assert!((r_s - r_h).abs() < 1e-3, "For a=0, event horizon must equal Schwarzschild radius");
+        assert!((r_ph - 1.5 * r_s).abs() < 1e-3, "Photon sphere radius must be 1.5 * r_s");
+
+        let z_far = metric.gravitational_redshift(100.0 * r_s);
+        assert!(z_far > 0.0 && z_far < 0.01, "Far redshift must be close to 0");
+
+        let z_horizon = metric.gravitational_redshift(r_s);
+        assert!(z_horizon.is_infinite(), "Redshift at event horizon must be infinite");
+    }
+
+    #[test]
+    fn test_stellar_evolution_mass_luminosity_scaling() {
+        use holo_engine::client::astrophysics::{StarParticle, StellarType};
+
+        let mut star = StarParticle::new([0.0, 0.0, 0.0], [0.0, 0.0, 0.0], 1.0); // 1 M_sun
+        assert_eq!(star.luminosity_solar, 1.0, "1 M_sun star luminosity must be 1.0 L_sun");
+
+        let lifetime = star.main_sequence_lifetime_years();
+        assert!((lifetime - 1.0e10).abs() < 1e6, "Sun main sequence lifetime must be ~10 billion years");
+
+        star.evolve(1.05e10);
+        assert_eq!(star.stellar_type, StellarType::RedGiant, "Sun at 10.5B yrs must evolve into Red Giant");
+
+        star.evolve(1.2e10);
+        assert_eq!(star.stellar_type, StellarType::WhiteDwarf, "Sun remnant must be White Dwarf");
+    }
+
+    #[test]
+    fn test_galactic_nbody_dynamics_conservation() {
+        use holo_engine::client::astrophysics::GalaxyNBodySystem;
+
+        let mut galaxy = GalaxyNBodySystem::new_spiral_galaxy(20, 1.0e6, 5.0);
+        assert_eq!(galaxy.stars.len(), 20);
+
+        let initial_pos = galaxy.stars[0].position;
+        galaxy.step_nbody_gravity(3600.0 * 24.0 * 365.0, 1.0e12); // 1 year step
+
+        let moved_pos = galaxy.stars[0].position;
+        assert!(
+            (moved_pos[0] - initial_pos[0]).abs() > 0.0 || (moved_pos[2] - initial_pos[2]).abs() > 0.0,
+            "Star position must evolve under gravitational acceleration"
+        );
+    }
+
+    #[test]
+    fn test_baroclinic_atmosphere_coriolis_deflection() {
+        use holo_engine::client::advanced_climate::BaroclinicClimateGrid;
+
+        let grid = BaroclinicClimateGrid::new(10, 10, 5, 1000.0);
+        let vel = [10.0, 0.0, 0.0]; // Eastward wind
+        let accel_equator = grid.compute_coriolis_acceleration(5, vel);
+        let accel_north = grid.compute_coriolis_acceleration(8, vel);
+
+        assert!(accel_north[1] < 0.0, "Eastward wind in Northern Hemisphere must experience southward Coriolis deflection");
+        assert!(accel_north[1].abs() > accel_equator[1].abs(), "Coriolis force must be stronger near poles than at equator");
+    }
 }
+
 

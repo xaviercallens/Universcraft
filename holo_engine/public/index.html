@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HoloEngine 3D - Remote Visualizer</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        header {
+            background-color: #1e1e1e;
+            width: 100%;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        h1 {
+            margin: 0;
+            color: #4da6ff;
+        }
+        .container {
+            display: flex;
+            width: 90%;
+            max-width: 1400px;
+            margin-top: 30px;
+            gap: 30px;
+        }
+        .controls {
+            flex: 1;
+            background-color: #1e1e1e;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            max-width: 350px;
+        }
+        .display {
+            flex: 3;
+            background-color: #000;
+            border: 2px solid #333;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 500px;
+            position: relative;
+            overflow: hidden;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #ccc;
+        }
+        select, input, button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            border: 1px solid #444;
+            background-color: #2a2a2a;
+            color: #fff;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4da6ff;
+            color: #121212;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            border: none;
+        }
+        button:hover {
+            background-color: #3388dd;
+        }
+        button:disabled {
+            background-color: #555;
+            color: #888;
+            cursor: not-allowed;
+        }
+        img#render-output {
+            max-width: 100%;
+            max-height: 80vh;
+            object-fit: contain;
+            display: none;
+        }
+        .loader {
+            display: none;
+            border: 5px solid #333;
+            border-top: 5px solid #4da6ff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #status-bar {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #1e1e1e;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 1400px;
+            font-family: monospace;
+            color: #a0d468;
+        }
+        .error {
+            color: #ff5555 !important;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>HoloEngine 3D — Remote T4 GPU Render Node</h1>
+        <p>Offline Analytical Raymarching & Relativistic Spacetime Engine</p>
+    </header>
+
+    <div class="container">
+        <div class="controls">
+            <h3>Render Parameters</h3>
+            <form id="render-form">
+                <label for="scene">Target Scene</label>
+                <select id="scene" name="scene">
+                    <option value="ocean_sunset">Phase 1: Simulateur Eau (Ocean Sunset)</option>
+                    <option value="forest_soil">Phase 2: Simulateur Sol & Arbres (Forest)</option>
+                    <option value="cloudscape">Phase 3: Simulateur Nuages (Cloudscape)</option>
+                    <option value="crystal_cave">Phase 4: Grotte Cristalline (Crystal Cave)</option>
+                    <option value="floating_islands">Phase 5: Îles Flottantes (Floating Islands)</option>
+                    <option value="desert_dunes">Phase 6: Dunes du Désert (Desert Dunes)</option>
+                    <option value="ice_glacier">Phase 7: Glacier Glacé (Ice Glacier)</option>
+                    <option value="volcano_core">Phase 8: Coeur du Volcan (Volcano Core)</option>
+                    <option value="alien_planet">Phase 9: Planète Extraterrestre (Alien Flora)</option>
+                    <option value="deep_space">Phase 10: Nébuleuse (Deep Space Nebula)</option>
+                    <option value="black_hole">Phase 11: Kerr Black Hole Relativistic Spacetime</option>
+                    <option value="earth_orbit" style="font-weight:bold; color:#00f2fe;">🌐 Cinematic 1: Planète Bleue (Earth Orbit)</option>
+                    <option value="continental_biomes" style="font-weight:bold; color:#00ff87;">🏜️ Cinematic 2: Équateur Sauvage (Biomes)</option>
+                    <option value="arctic_aurora" style="font-weight:bold; color:#e100ff;">🧊 Cinematic 3: Pôle Boréal (Arctic Aurora)</option>
+                    <option value="volcanic_crystal_cave" style="font-weight:bold; color:#ff3300;">🌋 Cinematic 4: Cœur Terrestre (Volcanic Cave)</option>
+                    <option value="floating_archipelago" style="font-weight:bold; color:#ffcc00;">☁️ Cinematic 5: Archipel Suspendu (Archipelago)</option>
+                </select>
+
+                <label for="resolution">Resolution Target</label>
+                <select id="resolution" name="resolution">
+                    <option value="1280x720">1280 x 720 (720p HD)</option>
+                    <option value="1920x1080" selected>1920 x 1080 (1080p FHD)</option>
+                    <option value="2560x1440">2560 x 1440 (1440p QHD)</option>
+                    <option value="3840x2160">3840 x 2160 (4K UHD)</option>
+                </select>
+
+                <button type="submit" id="generate-btn">Execute GPU Generation</button>
+                <button type="button" id="flip-btn" style="background-color: #555; margin-top: 10px;">Flip Vertical (Up/Down)</button>
+            </form>
+        </div>
+        <div class="display">
+            <div class="loader" id="loader"></div>
+            <img id="render-output" alt="Generated Scene" />
+        </div>
+    </div>
+
+    <div id="status-bar">
+        System Ready. Select parameters and execute generation...
+    </div>
+
+    <script>
+        const form = document.getElementById('render-form');
+        const btn = document.getElementById('generate-btn');
+        const loader = document.getElementById('loader');
+        const output = document.getElementById('render-output');
+        const statusBar = document.getElementById('status-bar');
+        const flipBtn = document.getElementById('flip-btn');
+
+        let isFlipped = false;
+        flipBtn.addEventListener('click', () => {
+            isFlipped = !isFlipped;
+            output.style.transform = isFlipped ? 'scaleY(-1)' : 'scaleY(1)';
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const scene = document.getElementById('scene').value;
+            const resVal = document.getElementById('resolution').value.split('x');
+            const width = parseInt(resVal[0]);
+            const height = parseInt(resVal[1]);
+
+            // UI Update
+            btn.disabled = true;
+            output.style.display = 'none';
+            loader.style.display = 'block';
+            statusBar.className = '';
+            statusBar.innerText = `Dispatching WGPU compute task for ${scene} at ${width}x${height}...`;
+
+            try {
+                const response = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        scene: scene,
+                        resolution_width: width,
+                        resolution_height: height
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    output.src = data.image_url;
+                    output.onload = () => {
+                        loader.style.display = 'none';
+                        output.style.display = 'block';
+                    };
+                    statusBar.innerText = `[SUCCESS] ${data.message} | VRAM Readback Latency: ${data.render_time_ms.toFixed(2)} ms`;
+                } else {
+                    loader.style.display = 'none';
+                    statusBar.className = 'error';
+                    statusBar.innerText = `[ERROR] ${data.message}`;
+                }
+            } catch (err) {
+                loader.style.display = 'none';
+                statusBar.className = 'error';
+                statusBar.innerText = `[NETWORK ERROR] Could not reach render node: ${err}`;
+            } finally {
+                btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -7,3 +7,4 @@ pub mod poc2;
 pub mod telemetry;
 
 
+pub mod analysis;
