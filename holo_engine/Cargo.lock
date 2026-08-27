@@ -3011,6 +3011,7 @@ dependencies = [
  "burn",
  "fast-surface-nets",
  "rand 0.8.8",
+ "rayon",
  "salva3d",
  "serde",
  "serde_json",

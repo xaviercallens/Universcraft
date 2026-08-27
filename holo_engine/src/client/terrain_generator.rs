@@ -79,22 +79,31 @@ impl SDFTerrainGenerator {
     /// Generates a Bevy Mesh for a specific chunk offset
     pub fn generate_chunk_mesh(&self, offset_x: f32, offset_y: f32, offset_z: f32, craters: &[(Vec3, f32)]) -> Mesh {
         let mut voxel_data = vec![0.0f32; ChunkShape::SIZE as usize];
-        let chunk_res = 34; // ChunkShape dimensions
+        let chunk_res: u32 = 34; // ChunkShape dimensions
 
-        // Parallelize voxel data generation using Rayon for local CPU acceleration
+        // Parallelize voxel data generation using Rayon on the outermost Z loop
+        // This preserves correct linearization: idx = x + y*res + z*res*res
         use rayon::prelude::*;
-        voxel_data.par_chunks_mut(chunk_res as usize).enumerate().for_each(|(z_y_idx, slice)| {
-            let z = (z_y_idx / chunk_res as usize) as u32;
-            let y = (z_y_idx % chunk_res as usize) as u32;
-            for x in 0..chunk_res {
-                let world_x = offset_x + (x as f32 - 1.0) * self.voxel_size;
-                let world_y = offset_y + (y as f32 - 1.0) * self.voxel_size;
-                let world_z = offset_z + (z as f32 - 1.0) * self.voxel_size;
-                
-                let sdf_val = Self::evaluate_sdf(world_x, world_y, world_z, craters);
-                slice[x as usize] = sdf_val;
-            }
-        });
+        let voxel_size = self.voxel_size;
+        let total = (chunk_res * chunk_res * chunk_res) as usize;
+
+        let computed: Vec<(usize, f32)> = (0..total).into_par_iter().map(|flat_idx| {
+            let x = (flat_idx % chunk_res as usize) as u32;
+            let y = ((flat_idx / chunk_res as usize) % chunk_res as usize) as u32;
+            let z = (flat_idx / (chunk_res as usize * chunk_res as usize)) as u32;
+
+            let world_x = offset_x + (x as f32 - 1.0) * voxel_size;
+            let world_y = offset_y + (y as f32 - 1.0) * voxel_size;
+            let world_z = offset_z + (z as f32 - 1.0) * voxel_size;
+
+            let sdf_val = Self::evaluate_sdf(world_x, world_y, world_z, craters);
+            let idx = ChunkShape::linearize([x, y, z]) as usize;
+            (idx, sdf_val)
+        }).collect();
+
+        for (idx, val) in computed {
+            voxel_data[idx] = val;
+        }
 
         
         let mut buffer = SurfaceNetsBuffer::default();

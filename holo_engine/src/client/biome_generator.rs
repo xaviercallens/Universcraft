@@ -5,43 +5,7 @@
 use bevy::prelude::*;
 
 #[cfg(not(feature = "full"))]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Vec3 {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-}
-
-#[cfg(not(feature = "full"))]
-impl Vec3 {
-    pub const ZERO: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 };
-    pub const Y: Vec3 = Vec3 { x: 0.0, y: 1.0, z: 0.0 };
-
-    pub fn new(x: f32, y: f32, z: f32) -> Self {
-        Vec3 { x, y, z }
-    }
-
-    pub fn normalize(self) -> Self {
-        let len = (self.x * self.x + self.y * self.y + self.z * self.z).sqrt().max(0.0001);
-        Vec3 { x: self.x / len, y: self.y / len, z: self.z / len }
-    }
-}
-
-#[cfg(not(feature = "full"))]
-impl std::ops::Add for Vec3 {
-    type Output = Self;
-    fn add(self, rhs: Self) -> Self {
-        Vec3 { x: self.x + rhs.x, y: self.y + rhs.y, z: self.z + rhs.z }
-    }
-}
-
-#[cfg(not(feature = "full"))]
-impl std::ops::Mul<f32> for Vec3 {
-    type Output = Self;
-    fn mul(self, rhs: f32) -> Self {
-        Vec3 { x: self.x * rhs, y: self.y * rhs, z: self.z * rhs }
-    }
-}
+use crate::math_types::Vec3;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BiomeType {
@@ -114,6 +78,7 @@ impl WhittakerClimateModel {
     }
 
     /// Generates L-System Fractal Tree Mesh bounded by T-Duality R_eff = max(R, alpha'/R) >= sqrt(alpha')
+    /// Trees now branch in full 3D using deterministic pseudo-random seed from position and depth.
     pub fn build_t_dual_fractal_tree(&self, trunk_height: f32, depth: u32) -> (Vec<Vec3>, Vec<u32>) {
         let min_r = self.alpha_prime.sqrt(); // Quantum T-Duality lower radius bound
         let mut positions = Vec::new();
@@ -126,11 +91,17 @@ impl WhittakerClimateModel {
             0.3,
             depth,
             min_r,
+            0.0, // initial seed for 3D branching
             &mut positions,
             &mut indices,
         );
 
         (positions, indices)
+    }
+
+    /// Deterministic pseudo-random hash for reproducible 3D branching
+    fn branch_hash(seed: f32) -> f32 {
+        ((seed * 127.1 + 311.7).sin() * 43758.5453).fract()
     }
 
     fn generate_branch(
@@ -141,6 +112,7 @@ impl WhittakerClimateModel {
         radius: f32,
         depth: u32,
         min_r: f32,
+        seed: f32,
         positions: &mut Vec<Vec3>,
         indices: &mut Vec<u32>,
     ) {
@@ -150,11 +122,16 @@ impl WhittakerClimateModel {
         let base_idx = positions.len() as u32;
         let end = start + dir * length;
 
-        // Trunk segment vertices
-        positions.push(start + Vec3::new(-r_eff, 0.0, 0.0));
-        positions.push(start + Vec3::new(r_eff, 0.0, 0.0));
-        positions.push(end + Vec3::new(-r_eff * 0.7, 0.0, 0.0));
-        positions.push(end + Vec3::new(r_eff * 0.7, 0.0, 0.0));
+        // Compute a tangent frame for 3D cross-section placement
+        let up = if dir.y.abs() > 0.99 { Vec3::Z } else { Vec3::Y };
+        let right = dir.cross(up).normalize();
+        let forward = dir.cross(right).normalize();
+
+        // Trunk segment vertices (4 corners using tangent frame)
+        positions.push(start + right * (-r_eff));
+        positions.push(start + right * r_eff);
+        positions.push(end + right * (-r_eff * 0.7));
+        positions.push(end + right * (r_eff * 0.7));
 
         indices.extend_from_slice(&[
             base_idx, base_idx + 1, base_idx + 2,
@@ -163,11 +140,31 @@ impl WhittakerClimateModel {
 
         // Quantum T-Duality Bound Cutoff: Stop fractal recursion if scale reaches sqrt(alpha')
         if depth > 0 && r_eff > min_r + 0.05 {
-            let left_dir = (dir + Vec3::new(-0.4, 0.3, 0.0)).normalize();
-            let right_dir = (dir + Vec3::new(0.4, 0.3, 0.0)).normalize();
+            // 3D branching: use deterministic hash for azimuthal angle around the branch axis
+            let hash_val = Self::branch_hash(seed + depth as f32 * 7.3);
+            let azimuth = hash_val * std::f32::consts::TAU; // Full 360° rotation
+            let cos_a = azimuth.cos();
+            let sin_a = azimuth.sin();
 
-            self.generate_branch(end, left_dir, length * 0.7, radius * 0.65, depth - 1, min_r, positions, indices);
-            self.generate_branch(end, right_dir, length * 0.7, radius * 0.65, depth - 1, min_r, positions, indices);
+            // Left branch: deflect from parent direction using tangent frame
+            let left_lateral = right * (cos_a * -0.4) + forward * (sin_a * -0.4);
+            let left_dir = (dir + left_lateral + Vec3::Y * 0.3).normalize();
+
+            // Right branch: opposite azimuth
+            let right_lateral = right * (cos_a * 0.4) + forward * (sin_a * 0.4);
+            let right_dir = (dir + right_lateral + Vec3::Y * 0.3).normalize();
+
+            self.generate_branch(end, left_dir, length * 0.7, radius * 0.65, depth - 1, min_r, seed + 1.0, positions, indices);
+            self.generate_branch(end, right_dir, length * 0.7, radius * 0.65, depth - 1, min_r, seed + 2.0, positions, indices);
+
+            // Third branch at ~40% probability for organic variation
+            let third_hash = Self::branch_hash(seed + depth as f32 * 13.7);
+            if third_hash > 0.6 {
+                let third_azimuth = third_hash * std::f32::consts::TAU;
+                let third_lateral = right * (third_azimuth.cos() * 0.3) + forward * (third_azimuth.sin() * 0.3);
+                let third_dir = (dir + third_lateral + Vec3::Y * 0.4).normalize();
+                self.generate_branch(end, third_dir, length * 0.55, radius * 0.5, depth - 1, min_r, seed + 3.0, positions, indices);
+            }
         }
     }
 }

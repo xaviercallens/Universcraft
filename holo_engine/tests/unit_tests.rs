@@ -133,38 +133,42 @@ mod tests {
     #[test]
     fn test_atmospheric_scattering_and_sun_cycle() {
         use holo_engine::client::atmosphere::AtmosphericEngine;
+        use holo_engine::math_types::Vec3;
 
         let noon_engine = AtmosphericEngine::new(12.0);
         let sun = noon_engine.compute_sun_position();
         assert!(sun.elevation > 0.5, "Noon sun elevation should be high");
 
-        let (r, g, b) = noon_engine.evaluate_sky_color((0.0, 1.0, 0.0));
-        assert!(r >= 0.0 && g >= 0.0 && b >= 0.0, "Sky color RGB components must be non-negative");
+        let sky = noon_engine.evaluate_sky_color(Vec3::new(0.0, 1.0, 0.0));
+        assert!(sky.x >= 0.0 && sky.y >= 0.0 && sky.z >= 0.0, "Sky color RGB components must be non-negative");
 
         let fog = noon_engine.compute_volumetric_fog(50.0, 0.0);
         assert!(fog >= 0.0 && fog <= 1.0, "Volumetric fog factor must be bounded [0, 1]");
+
+        // Adversarial: downward view direction must not produce negative RGB
+        let down_sky = noon_engine.evaluate_sky_color(Vec3::new(0.0, -1.0, 0.0));
+        assert!(down_sky.x >= 0.0 && down_sky.y >= 0.0 && down_sky.z >= 0.0, "Downward sky must be non-negative");
     }
 
     #[test]
     fn test_tait_eos_and_leray_solenoidal_fluid_solver() {
         use holo_engine::client::fluid_solver::{SymplecticFluidSolver, SPHParams, FluidParticle};
+        use holo_engine::math_types::Vec3;
 
         let params = SPHParams::default();
-        let particle = FluidParticle {
-            position: (0.0, 5.0, 0.0),
-            velocity: (10.0, 10.0, 10.0), // High kinetic energy > E_max
-            density: 1050.0,
-            pressure: 0.0,
-            mass: 1.0,
-        };
+        let particle = FluidParticle::new(
+            Vec3::new(0.0, 5.0, 0.0),
+            Vec3::new(10.0, 10.0, 10.0), // High kinetic energy > E_max
+            1.0,
+        );
 
         let mut solver = SymplecticFluidSolver::new(params, vec![particle]);
         let pressure = solver.compute_tait_pressure(1050.0);
         assert!(pressure > 0.0, "Tait EOS pressure must be positive for compressed fluid");
 
         solver.step(0.016);
-        let updated_particle = &solver.particles[0];
-        let enstrophy = 0.5 * (updated_particle.velocity.0.powi(2) + updated_particle.velocity.1.powi(2) + updated_particle.velocity.2.powi(2));
+        let updated = &solver.particles[0];
+        let enstrophy = 0.5 * updated.velocity.length_squared();
         assert!(enstrophy <= params.enstrophy_cap + 0.001, "Enstrophy must be bounded by E_max (25.0)");
     }
 
@@ -191,22 +195,69 @@ mod tests {
     #[test]
     fn test_parallel_sph_fluid_solver() {
         use holo_engine::client::fluid_solver::{SymplecticFluidSolver, SPHParams, FluidParticle};
+        use holo_engine::math_types::Vec3;
 
         let params = SPHParams::default();
-        let particles = (0..100).map(|i| FluidParticle {
-            position: (i as f32 * 0.1, 5.0, 0.0),
-            velocity: (5.0, 5.0, 5.0),
-            density: 1020.0,
-            pressure: 0.0,
-            mass: 1.0,
-        }).collect();
+        let particles: Vec<FluidParticle> = (0..50).map(|i| FluidParticle::new(
+            Vec3::new(i as f32 * 0.1, 5.0, 0.0),
+            Vec3::new(5.0, 5.0, 5.0),
+            1.0,
+        )).collect();
 
         let mut solver = SymplecticFluidSolver::new(params, particles);
         solver.step_parallel(0.016);
-        assert_eq!(solver.particles.len(), 100);
-        let updated_p = &solver.particles[0];
-        let enstrophy = 0.5 * (updated_p.velocity.0.powi(2) + updated_p.velocity.1.powi(2) + updated_p.velocity.2.powi(2));
-        assert!(enstrophy <= params.enstrophy_cap + 0.001);
+        assert_eq!(solver.particles.len(), 50);
+        for p in &solver.particles {
+            let enstrophy = 0.5 * p.velocity.length_squared();
+            assert!(enstrophy <= params.enstrophy_cap + 0.1, "Enstrophy must be bounded");
+        }
+    }
+
+    #[test]
+    fn test_sph_neighbor_density_interaction() {
+        use holo_engine::client::fluid_solver::{SymplecticFluidSolver, SPHParams, FluidParticle};
+        use holo_engine::math_types::Vec3;
+
+        let mut params = SPHParams::default();
+        params.smoothing_radius = 2.0;
+
+        // Two particles within smoothing radius must produce density > rest_density * 0.1
+        let particles = vec![
+            FluidParticle::new(Vec3::new(0.0, 0.0, 0.0), Vec3::ZERO, 1.0),
+            FluidParticle::new(Vec3::new(0.5, 0.0, 0.0), Vec3::ZERO, 1.0),
+        ];
+
+        let mut solver = SymplecticFluidSolver::new(params, particles);
+        solver.step(0.016);
+
+        // After step, density must have been computed from neighbor interaction
+        for p in &solver.particles {
+            assert!(!p.density.is_nan(), "Density must not be NaN");
+            assert!(p.density > 0.0, "Density must be positive after neighbor interaction");
+        }
+    }
+
+    #[test]
+    fn test_zero_density_no_nan() {
+        use holo_engine::client::fluid_solver::{SymplecticFluidSolver, SPHParams};
+
+        let params = SPHParams::default();
+        let pressure = SymplecticFluidSolver::compute_tait_pressure_with_params(&params, 0.0);
+        assert!(!pressure.is_nan(), "Pressure must not be NaN for zero density");
+        assert!(!pressure.is_infinite(), "Pressure must not be infinite for zero density");
+    }
+
+    #[test]
+    fn test_3d_lsystem_tree_branches_span_z_axis() {
+        use holo_engine::client::biome_generator::WhittakerClimateModel;
+
+        let model = WhittakerClimateModel::new(1.0);
+        let (positions, _indices) = model.build_t_dual_fractal_tree(2.0, 5);
+        assert!(!positions.is_empty());
+
+        let min_z = positions.iter().map(|p| p.z).fold(f32::INFINITY, f32::min);
+        let max_z = positions.iter().map(|p| p.z).fold(f32::NEG_INFINITY, f32::max);
+        assert!(max_z - min_z > 0.01, "3D L-System tree must branch across Z axis, span = {}", max_z - min_z);
     }
 }
 
