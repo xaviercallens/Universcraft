@@ -131,20 +131,37 @@ impl TdaEngine {
             0
         };
 
-        // Betti_2 Cavity estimation based on 3-cliques (triangles) in Rips complex
+        // Betti_2 Cavity estimation based on 4-cliques (tetrahedra) in Rips complex
         let mut triangles = 0;
+        let mut tetrahedra = 0;
+        
         for i in 0..n {
             for j in (i + 1)..n {
                 if adj[i][j] {
                     for k in (j + 1)..n {
                         if adj[i][k] && adj[j][k] {
                             triangles += 1;
+                            
+                            if n <= 200 {
+                                for l in (k + 1)..n {
+                                    if adj[i][l] && adj[j][l] && adj[k][l] {
+                                        tetrahedra += 1;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
-        let betti_2 = (triangles / 4).max(1);
+        
+        // Euler Characteristic: B0 - B1 + B2 = V - E + T - K (assuming B3=0)
+        // B2 = K - T + E - V + B0 - B1
+        // (where V=n, E=edge_count, T=triangles, K=tetrahedra)
+        // Note: For an exact Rips complex, B2 = (rank of Z2) - (rank of B2)
+        // This is a much better estimation than before.
+        let betti_2_signed = tetrahedra as isize - triangles as isize + edge_count as isize - n as isize + components as isize - betti_1 as isize;
+        let betti_2 = betti_2_signed.max(0) as usize;
 
         BettiNumbers {
             betti_0: components,

@@ -5,6 +5,8 @@
 use bevy::prelude::*;
 #[cfg(feature = "full")]
 use holo_engine::client::terrain_generator::SDFTerrainGenerator;
+#[cfg(feature = "full")]
+use holo_engine::client::terrain_material::TerrainMaterial;
 
 #[cfg(not(feature = "full"))]
 fn main() {
@@ -14,7 +16,7 @@ fn main() {
 #[cfg(feature = "full")]
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins((DefaultPlugins, MaterialPlugin::<TerrainMaterial>::default()))
         .init_resource::<TerrainCraters>()
         .add_systems(Startup, setup_scene)
         .add_systems(Update, (fly_camera, update_sph_particles, mine_terrain_system))
@@ -52,6 +54,7 @@ fn setup_scene(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut terrain_materials: ResMut<Assets<TerrainMaterial>>,
 ) {
     // Light
     commands.spawn(DirectionalLightBundle {
@@ -74,10 +77,12 @@ fn setup_scene(
     let chunk_size = 16.0;
     let voxel_size = 1.0;
     let terrain_gen = SDFTerrainGenerator::new(chunk_size, voxel_size);
-    let material_handle = materials.add(StandardMaterial {
-        base_color: Color::WHITE,
-        perceptual_roughness: 0.8,
-        ..default()
+    let terrain_material_handle = terrain_materials.add(TerrainMaterial {
+        view_proj: Mat4::IDENTITY,
+        camera_pos: Vec3::ZERO,
+        sun_dir: Vec3::new(1.0, 1.0, 1.0).normalize(),
+        sun_color: Vec3::new(1.0, 1.0, 1.0),
+        ambient_light: Vec3::new(0.2, 0.2, 0.2),
     });
 
     let chunk_offsets = [
@@ -90,9 +95,9 @@ fn setup_scene(
     for origin in chunk_offsets {
         let chunk_mesh = terrain_gen.generate_chunk_mesh(origin.x, origin.y, origin.z, &[]);
         commands.spawn((
-            PbrBundle {
+            MaterialMeshBundle {
                 mesh: meshes.add(chunk_mesh),
-                material: material_handle.clone(),
+                material: terrain_material_handle.clone(),
                 transform: Transform::from_xyz(0.0, 0.0, 0.0),
                 ..default()
             },

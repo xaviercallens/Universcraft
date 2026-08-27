@@ -18,3 +18,9 @@ rayon = "1.10"
 default = []
 full = ["dep:bevy", "dep:fast-surface-nets", "dep:burn", "dep:salva3d"]
 
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "perf_benchmarks"
+harness = false

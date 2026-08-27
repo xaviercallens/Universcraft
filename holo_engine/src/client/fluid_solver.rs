@@ -228,7 +228,7 @@ impl SymplecticFluidSolver {
         use rayon::prelude::*;
 
         // Phase 1: Compute densities (read positions, write densities)
-        let kernels = SPHKernels::new(self.params.smoothing_radius);
+        // Phase 1: Compute densities (read positions, write densities)
         let positions: Vec<Vec3> = self.particles.iter().map(|p| p.position).collect();
         let masses: Vec<f32> = self.particles.iter().map(|p| p.mass).collect();
         let rest_density = self.params.rest_density;

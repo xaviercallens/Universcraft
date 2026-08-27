@@ -1,5 +1,6 @@
-// HoloEngine Triplanar PBR & Whittaker Biome Blending WGSL Shader
-// Implements Triplanar UV Projection, Organic Ecotone Dithering, and ACES Tonemapping
+#import bevy_pbr::forward_io::VertexOutput
+#import bevy_pbr::mesh_view_bindings::globals
+#import bevy_pbr::mesh_view_bindings::view
 
 struct TerrainUniforms {
     view_proj: mat4x4<f32>,
@@ -7,36 +8,15 @@ struct TerrainUniforms {
     sun_dir: vec3<f32>,
     sun_color: vec3<f32>,
     ambient_light: vec3<f32>,
-};
+}
 
-@group(0) @binding(0) var<uniform> uniforms: TerrainUniforms;
-@group(0) @binding(1) var noise_texture: texture_2d<f32>;
-@group(0) @binding(2) var texture_sampler: sampler;
+@group(2) @binding(0) var<uniform> uniforms: TerrainUniforms;
 
-struct VertexInput {
-    @location(0) position: vec3<f32>,
-    @location(1) normal: vec3<f32>,
-    @location(2) height: f32,
-    @location(3) temp_hum: vec2<f32>,
-};
-
-struct VertexOutput {
-    @builtin(position) clip_position: vec4<f32>,
-    @location(0) world_pos: vec3<f32>,
-    @location(1) normal: vec3<f32>,
-    @location(2) height: f32,
-    @location(3) temp_hum: vec2<f32>,
-};
-
-@vertex
-fn vs_main(model: VertexInput) -> VertexOutput {
-    var out: VertexOutput;
-    out.world_pos = model.position;
-    out.normal = normalize(model.normal);
-    out.height = model.height;
-    out.temp_hum = model.temp_hum;
-    out.clip_position = uniforms.view_proj * vec4<f32>(model.position, 1.0);
-    return out;
+// Triplanar Blending Weights from Surface Normal
+fn triplanar_weights(normal: vec3<f32>) -> vec3<f32> {
+    let abs_n = abs(normal);
+    let pow_n = pow(abs_n, vec3<f32>(4.0));
+    return pow_n / (pow_n.x + pow_n.y + pow_n.z + 0.0001);
 }
 
 // ACES Fitted Tonemapping curve
@@ -49,41 +29,13 @@ fn aces_tonemap(color: vec3<f32>) -> vec3<f32> {
     return clamp((color * (a * color + b)) / (color * (c * color + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
 }
 
-// Triplanar Blending Weights from Surface Normal
-fn triplanar_weights(normal: vec3<f32>) -> vec3<f32> {
-    let abs_n = abs(normal);
-    let pow_n = pow(abs_n, vec3<f32>(4.0));
-    return pow_n / (pow_n.x + pow_n.y + pow_n.z + 0.0001);
-}
-
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let normal = normalize(in.normal);
+fn fragment(mesh: VertexOutput) -> @location(0) vec4<f32> {
+    let normal = normalize(mesh.world_normal);
     let weights = triplanar_weights(normal);
 
-    // Whittaker Climate Parameters with Noise Perturbation (Ecotones)
-    let noise_val = sin(in.world_pos.x * 12.34) * cos(in.world_pos.z * 56.78) * 0.05;
-    let temp = clamp(in.temp_hum.x + noise_val, 0.0, 1.0);
-    let hum = clamp(in.temp_hum.y + noise_val, 0.0, 1.0);
-
-    // Biome Base Colors
-    var base_color: vec3<f32>;
-    if (in.height > 0.6) {
-        // Snow Peak
-        base_color = vec3<f32>(0.92, 0.94, 0.98);
-    } else if (temp > 0.6 && hum < 0.35) {
-        // Desert Sand
-        base_color = vec3<f32>(0.85, 0.72, 0.45);
-    } else if (temp > 0.5 && hum >= 0.35) {
-        // Tropical Jungle
-        base_color = vec3<f32>(0.12, 0.65, 0.22);
-    } else if (temp <= 0.5 && hum >= 0.35) {
-        // Taiga Forest
-        base_color = vec3<f32>(0.15, 0.45, 0.25);
-    } else {
-        // Tundra Sage
-        base_color = vec3<f32>(0.45, 0.55, 0.42);
-    }
+    // Read CPU-generated biome color from vertex attributes (COLOR)
+    let base_color = mesh.color.rgb;
 
     // Rock Cliff Face Blend (Slope >= 0.65)
     let slope = 1.0 - abs(normal.y);
@@ -93,7 +45,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     // Lighting (Directional Sun + Ambient Occlusion)
     let NdotL = max(dot(normal, uniforms.sun_dir), 0.15);
-    let ao = clamp(0.7 + in.height * 0.4 - slope * 0.25, 0.35, 1.0);
+    
+    // Simple height-based AO
+    let height = mesh.world_position.y;
+    let ao = clamp(0.7 + height * 0.05 - slope * 0.25, 0.35, 1.0);
     
     let diffuse = blended_albedo * uniforms.sun_color * NdotL * ao;
     let ambient = blended_albedo * uniforms.ambient_light * ao;
