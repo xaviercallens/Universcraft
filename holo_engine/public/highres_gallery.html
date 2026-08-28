@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HoloEngine 3D — Galerie Haute Résolution & Diaporama</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: #080b10;
+            color: #e6edf3;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+        header {
+            background: #11151c;
+            border-bottom: 1px solid #21262d;
+            padding: 16px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .brand h1 { font-size: 1.3rem; color: #58a6ff; }
+        .badge {
+            background: #238636;
+            color: #fff;
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+        .nav-links { display: flex; gap: 10px; }
+        .nav-btn {
+            background: #1c2128;
+            border: 1px solid #30363d;
+            color: #58a6ff;
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .nav-btn:hover, .nav-btn.active {
+            background: #388bfd;
+            color: #fff;
+            border-color: #388bfd;
+        }
+
+        /* Slideshow Viewer */
+        .slideshow-section {
+            width: 100%;
+            max-width: 1600px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        .viewer-container {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            background: #000;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+        }
+        .slide-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: opacity 0.4s ease-in-out;
+        }
+        .overlay-card {
+            position: absolute;
+            bottom: 24px;
+            left: 24px;
+            right: 24px;
+            background: rgba(13, 17, 23, 0.88);
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 16px 20px;
+            backdrop-filter: blur(12px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .overlay-info h2 { font-size: 1.25rem; color: #58a6ff; margin-bottom: 4px; }
+        .overlay-info p { font-size: 0.85rem; color: #8b949e; }
+        .overlay-badges {
+            display: flex;
+            gap: 8px;
+            margin-top: 6px;
+        }
+        .tech-pill {
+            background: #21262d;
+            border: 1px solid #30363d;
+            font-size: 0.75rem;
+            padding: 3px 8px;
+            border-radius: 4px;
+            color: #7ee787;
+            font-family: monospace;
+        }
+        .controls-bar {
+            display: flex;
+            gap: 8px;
+        }
+        .ctrl-btn {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #fff;
+            width: 42px;
+            height: 42px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 1.1rem;
+            transition: all 0.2s;
+        }
+        .ctrl-btn:hover { background: #388bfd; border-color: #388bfd; }
+
+        /* Thumbnails Strip */
+        .thumbnails-strip {
+            display: flex;
+            gap: 12px;
+            overflow-x: auto;
+            padding: 14px 4px;
+            margin-top: 10px;
+            scrollbar-width: thin;
+            scrollbar-color: #30363d #0d1117;
+        }
+        .thumb-item {
+            flex: 0 0 160px;
+            aspect-ratio: 16 / 9;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 2px solid #21262d;
+            cursor: pointer;
+            opacity: 0.6;
+            transition: all 0.2s;
+        }
+        .thumb-item.active, .thumb-item:hover {
+            opacity: 1.0;
+            border-color: #58a6ff;
+            transform: scale(1.03);
+        }
+        .thumb-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* 4x4 Grid Section */
+        .grid-section {
+            max-width: 1600px;
+            width: 100%;
+            margin: 40px auto 60px;
+            padding: 0 20px;
+        }
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #21262d;
+            padding-bottom: 12px;
+        }
+        .section-header h3 { font-size: 1.3rem; color: #58a6ff; }
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 20px;
+        }
+        .grid-card {
+            background: #11151c;
+            border: 1px solid #21262d;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .grid-card:hover {
+            transform: translateY(-4px);
+            border-color: #58a6ff;
+        }
+        .grid-card img {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            object-fit: cover;
+            display: block;
+        }
+        .card-body {
+            padding: 14px;
+        }
+        .card-body h4 { font-size: 0.95rem; color: #e6edf3; margin-bottom: 4px; }
+        .card-body p { font-size: 0.8rem; color: #8b949e; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="brand">
+        <h1>🌌 HoloEngine 3D <span class="badge">1080p FHD OFFLINE</span></h1>
+    </div>
+    <div class="nav-links">
+        <a href="webgpu_live.html" class="nav-btn">🚀 WebGPU Live</a>
+        <a href="highres_gallery.html" class="nav-btn active">🖼️ Galerie & Diaporama</a>
+        <a href="index.html" class="nav-btn">📡 Render Node</a>
+    </div>
+</header>
+
+<div class="slideshow-section">
+    <div class="viewer-container" id="viewer-container">
+        <img id="main-slide" class="slide-image" src="gallery/11_black_hole.png" onerror="this.src='output/black_hole_1920x1080_1787895359.png'" alt="High Res Scene" />
+        
+        <div class="overlay-card">
+            <div class="overlay-info">
+                <h2 id="slide-title">🕳️ Trou Noir de Kerr (Rebond T-Dual)</h2>
+                <p id="slide-desc">Géodésiques relativistes sans singularité, disque d'accrétion Doppler et redshift gravitationnel.</p>
+                <div class="overlay-badges" id="slide-badges">
+                    <span class="tech-pill">T-Dual: R_eff = max(R, α'/R)</span>
+                    <span class="tech-pill">Betti: β₀=1, β₁=235, β₂=482</span>
+                    <span class="tech-pill">Res: 1920x1080 FHD</span>
+                </div>
+            </div>
+            <div class="controls-bar">
+                <button class="ctrl-btn" id="btn-prev" title="Précédent (Flèche Gauche)">◀</button>
+                <button class="ctrl-btn" id="btn-play" title="Play/Pause Diaporama (Espace)">⏸</button>
+                <button class="ctrl-btn" id="btn-next" title="Suivant (Flèche Droite)">▶</button>
+                <button class="ctrl-btn" id="btn-full" title="Plein Écran (F)">⛶</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Thumbnails navigation -->
+    <div class="thumbnails-strip" id="thumbs-container"></div>
+</div>
+
+<div class="grid-section">
+    <div class="section-header">
+        <div>
+            <h3>Catalogue Complet des 16 Biomes & Scènes Physiques</h3>
+            <p style="font-size: 0.85rem; color: #8b949e; margin-top: 4px;">Modèles mathématiques machine-vérifiés & Raymarching WGSL analytique</p>
+        </div>
+    </div>
+    <div class="gallery-grid" id="grid-container"></div>
+</div>
+
+<script>
+    const scenes = [
+        {
+            id: "11_black_hole",
+            title: "🕳️ Trou Noir de Kerr & Espace-Temps Relativiste",
+            desc: "Géodésiques gravitationnelles sans singularité via rebond T-Dual, disque d'accrétion à effet Doppler et redshift d'Einstein.",
+            badge1: "Reff = max(R, α'/R)",
+            badge2: "Betti: β₀=1, β₁=235",
+            img: "gallery/11_black_hole.png",
+            fallback: "output/black_hole_1920x1080_1787895359.png"
+        },
+        {
+            id: "01_ocean_sunset",
+            title: "🌊 Océan & Fluides (Navier-Stokes)",
+            desc: "Dispersion multi-fréquence exacte ω² = gk tanh(kh), vitesse solénoïdale et projection de Leray-Hopf.",
+            badge1: "∇·u = 0 (Leray-Hopf)",
+            badge2: "Betti: β₁=471 (Vortices)",
+            img: "gallery/01_ocean_sunset.png",
+            fallback: "output/ocean_sunset_1920x1080_1787898434.png"
+        },
+        {
+            id: "06_desert_dunes",
+            title: "🏜️ Dunes du Désert & Transport Éolien",
+            desc: "EDP de transport éolien non-linéaire et relaxation d'avalanche 1-Lipschitz bornée à l'angle de repos (34°).",
+            badge1: "1-Lipschitz Angle: 34°",
+            badge2: "Barkhanes SDF",
+            img: "gallery/06_desert_dunes.png",
+            fallback: "output/desert_dunes_1920x1080_1787898438.png"
+        },
+        {
+            id: "03_cloudscape",
+            title: "☁️ Nuages & Atmosphère Volumétrique",
+            desc: "Flottabilité thermique de Boussinesq, confinement de vorticité Kelvin-Helmholtz et diffusion de Rayleigh/Mie.",
+            badge1: "Boussinesq Buoyancy",
+            badge2: "Mie Phase g=0.82",
+            img: "gallery/03_cloudscape.png",
+            fallback: "output/floating_archipelago_1920x1080_1787895371.png"
+        },
+        {
+            id: "07_ice_glacier",
+            title: "🏔️ Glacier & Banquise (Loi de Glen)",
+            desc: "Approximation des glaces peu profondes (SIA) avec rhéologie non-newtonienne viscoplastique d'exposant n=3.",
+            badge1: "Glen Flow Law (n=3)",
+            badge2: "SIA Plasticity",
+            img: "gallery/07_ice_glacier.png",
+            fallback: "output/arctic_aurora_2560x1440_1787898467.png"
+        },
+        {
+            id: "10_deep_space",
+            title: "🌀 Galaxies & Matière Noire DESI",
+            desc: "Intégrateur symplectique de Yoshida (4ème ordre) éliminant la singularité centrale NFW (Rc = 5.66 kpc).",
+            badge1: "Symplectic Yoshida-4",
+            badge2: "DESI Cusp-Core",
+            img: "gallery/10_deep_space.png",
+            fallback: "output/deep_space_1920x1080_1787898443.png"
+        },
+        {
+            id: "12_earth_orbit",
+            title: "🌐 Cinematic 1: Planète Bleue (Earth Orbit)",
+            desc: "Projection globale atmosphérique, diffusion atmosphérique multi-couches et transition spatiale photoréaliste.",
+            badge1: "Rayleigh Blue-Sky",
+            badge2: "HDR ACES Tonemap",
+            img: "gallery/12_earth_orbit.png",
+            fallback: "output/earth_orbit_1920x1080_1787895349.png"
+        },
+        {
+            id: "13_continental_biomes",
+            title: "🌿 Cinematic 2: Équateur Sauvage (Biomes)",
+            desc: "Mélange PBR triplanaire de textures haute définition sans étirement UV, transitions d'écotones continues.",
+            badge1: "Triplanar PBR Shader",
+            badge2: "Ecotone Blending",
+            img: "gallery/13_continental_biomes.png",
+            fallback: "output/continental_biomes_3840x2160_1787859227.png"
+        },
+        {
+            id: "14_arctic_aurora",
+            title: "🧊 Cinematic 3: Pôle Boréal & Aurore Polaire",
+            desc: "Émission spectrale ionosphérique volumétrique et banquise réfléchissante avec spéculaire GGX.",
+            badge1: "Cryosphere Ecotone",
+            badge2: "Volumetric Aurora",
+            img: "gallery/14_arctic_aurora.png",
+            fallback: "output/arctic_aurora_3840x2160_1787859239.png"
+        },
+        {
+            id: "15_volcanic_crystal_cave",
+            title: "🌋 Cinematic 4: Cœur Terrestre (Volcanic Cave)",
+            desc: "Réfraction de cristaux diélectriques, émission thermique de lave magmatique et ombres douces coniques.",
+            badge1: "Subsurface Scattering",
+            badge2: "Raymarching SDF",
+            img: "gallery/15_volcanic_crystal_cave.png",
+            fallback: "output/volcanic_crystal_cave_2560x1440_1787898475.png"
+        },
+        {
+            id: "16_floating_archipelago",
+            title: "☁️ Cinematic 5: Archipel Suspendu",
+            desc: "Îles de métrique DONN flottant au-dessus d'une mer de nuages Boussinesq avec illumination globale diffuse.",
+            badge1: "DONN Metric Waves",
+            badge2: "Volumetric Clouds",
+            img: "gallery/16_floating_archipelago.png",
+            fallback: "output/floating_archipelago_1920x1080_1787895371.png"
+        },
+        {
+            id: "02_forest_soil",
+            title: "🌲 Forêt & Flore L-System (K3)",
+            desc: "Instanciation GPU matérielle d'arbres fractals distribués selon les attracteurs topologiques de Whittaker.",
+            badge1: "GPU Hardware Instancing",
+            badge2: "Whittaker Reaction-Diff",
+            img: "gallery/02_forest_soil.png",
+            fallback: "output/forest_soil_1280x720_1787859178.png"
+        },
+        {
+            id: "04_crystal_cave",
+            title: "💎 Grotte Cristalline & Réfraction",
+            desc: "Caustiques internes, géométrie procédurale de cristaux hexagonaux et réfraction de Fresnel.",
+            badge1: "Fresnel Transmission",
+            badge2: "Dielectric PBR",
+            img: "gallery/04_crystal_cave.png",
+            fallback: "output/volcanic_crystal_cave_2560x1440_1787898475.png"
+        },
+        {
+            id: "05_floating_islands",
+            title: "🏝️ Îles Flottantes Topologiques",
+            desc: "Reliefs inversés et ponts rocheux stables générés par modulation d'ondes stationnaires DONN.",
+            badge1: "DONN Standing Wave",
+            badge2: "β₀=972 Islands",
+            img: "gallery/05_floating_islands.png",
+            fallback: "output/floating_archipelago_1920x1080_1787895371.png"
+        },
+        {
+            id: "08_volcano_core",
+            title: "🔥 Cœur Magmatique & Émission Thermique",
+            desc: "Rayonnement de corps noir thermique, convection de fluide magmatique visqueux et fumées denses.",
+            badge1: "Planck Blackbody",
+            badge2: "Viscous Fluid",
+            img: "gallery/08_volcano_core.png",
+            fallback: "output/volcanic_crystal_cave_2560x1440_1787898475.png"
+        },
+        {
+            id: "09_alien_planet",
+            title: "🪐 Planète Extraterrestre & Ecotones",
+            desc: "Atmosphère à double soleil, biomes bioluminescents et flore procédurale non-terrestre.",
+            badge1: "Bioluminescence",
+            badge2: "Binary Star Lighting",
+            img: "gallery/09_alien_planet.png",
+            fallback: "output/alien_planet_1920x1080_1787895371.png"
+        }
+    ];
+
+    let currentIndex = 0;
+    let isPlaying = true;
+    let timer = null;
+
+    const mainSlide = document.getElementById('main-slide');
+    const slideTitle = document.getElementById('slide-title');
+    const slideDesc = document.getElementById('slide-desc');
+    const slideBadges = document.getElementById('slide-badges');
+    const thumbsContainer = document.getElementById('thumbs-container');
+    const gridContainer = document.getElementById('grid-container');
+    const btnPlay = document.getElementById('btn-play');
+    const btnPrev = document.getElementById('btn-prev');
+    const btnNext = document.getElementById('btn-next');
+    const btnFull = document.getElementById('btn-full');
+
+    function updateSlide(index) {
+        currentIndex = (index + scenes.length) % scenes.length;
+        const s = scenes[currentIndex];
+        
+        mainSlide.style.opacity = '0.3';
+        setTimeout(() => {
+            mainSlide.src = s.img;
+            mainSlide.onerror = () => { mainSlide.src = s.fallback; };
+            mainSlide.style.opacity = '1.0';
+        }, 150);
+
+        slideTitle.innerText = s.title;
+        slideDesc.innerText = s.desc;
+        slideBadges.innerHTML = `
+            <span class="tech-pill">${s.badge1}</span>
+            <span class="tech-pill">${s.badge2}</span>
+            <span class="tech-pill">1920x1080 FHD</span>
+        `;
+
+        // Update active thumb
+        document.querySelectorAll('.thumb-item').forEach((el, i) => {
+            el.classList.toggle('active', i === currentIndex);
+        });
+    }
+
+    function togglePlay() {
+        isPlaying = !isPlaying;
+        btnPlay.innerText = isPlaying ? '⏸' : '▶';
+        if (isPlaying) {
+            startTimer();
+        } else {
+            clearInterval(timer);
+        }
+    }
+
+    function startTimer() {
+        clearInterval(timer);
+        timer = setInterval(() => {
+            if (isPlaying) updateSlide(currentIndex + 1);
+        }, 5000);
+    }
+
+    // Populate Thumbnails & Grid
+    scenes.forEach((s, idx) => {
+        // Thumbnail
+        const thumb = document.createElement('div');
+        thumb.className = `thumb-item ${idx === 0 ? 'active' : ''}`;
+        thumb.innerHTML = `<img src="${s.img}" onerror="this.src='${s.fallback}'" alt="${s.title}" />`;
+        thumb.addEventListener('click', () => {
+            updateSlide(idx);
+            isPlaying = false;
+            btnPlay.innerText = '▶';
+            clearInterval(timer);
+        });
+        thumbsContainer.appendChild(thumb);
+
+        // Grid Card
+        const card = document.createElement('div');
+        card.className = 'grid-card';
+        card.innerHTML = `
+            <img src="${s.img}" onerror="this.src='${s.fallback}'" alt="${s.title}" />
+            <div class="card-body">
+                <h4>${s.title}</h4>
+                <p>${s.desc}</p>
+                <div style="margin-top: 8px;">
+                    <span class="tech-pill">${s.badge1}</span>
+                </div>
+            </div>
+        `;
+        card.addEventListener('click', () => {
+            updateSlide(idx);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+        gridContainer.appendChild(card);
+    });
+
+    btnPrev.addEventListener('click', () => { updateSlide(currentIndex - 1); isPlaying = false; btnPlay.innerText = '▶'; clearInterval(timer); });
+    btnNext.addEventListener('click', () => { updateSlide(currentIndex + 1); isPlaying = false; btnPlay.innerText = '▶'; clearInterval(timer); });
+    btnPlay.addEventListener('click', togglePlay);
+    btnFull.addEventListener('click', () => {
+        const elem = document.getElementById('viewer-container');
+        if (!document.fullscreenElement) elem.requestFullscreen().catch(err => alert(err.message));
+        else document.exitFullscreen();
+    });
+
+    // Keyboard navigation
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft') btnPrev.click();
+        if (e.key === 'ArrowRight') btnNext.click();
+        if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+        if (e.key === 'f' || e.key === 'F') btnFull.click();
+    });
+
+    updateSlide(0);
+    startTimer();
+</script>
+</body>
+</html>
