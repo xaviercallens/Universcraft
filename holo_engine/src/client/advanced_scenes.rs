@@ -127,7 +127,7 @@ fn raymarch_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let e_aces = 0.14;
     color = clamp((color * (a_aces * color + b_aces)) / (color * (c_aces * color + d_aces) + e_aces), vec3<f32>(0.0), vec3<f32>(1.0));
 
-    let pixel_idx = global_id.x + (bh_params.screen_height - 1u - global_id.y) * bh_params.screen_width;
+    let pixel_idx = global_id.x + global_id.y * bh_params.screen_width;
     let r_u = u32(clamp(color.r * 255.0, 0.0, 255.0));
     let g_u = u32(clamp(color.g * 255.0, 0.0, 255.0));
     let b_u = u32(clamp(color.b * 255.0, 0.0, 255.0));
@@ -989,7 +989,7 @@ fn raymarch_main(@builtin(global_invocation_id) global_id: vec3<u32>) {{
     let b = u32(clamp(color.b * 255.0, 0.0, 255.0));
     let a = 255u;
 
-    let pixel_idx = global_id.x + (ray_params.screen_height - 1u - global_id.y) * ray_params.screen_width;
+    let pixel_idx = global_id.x + global_id.y * ray_params.screen_width;
     color_buffer[pixel_idx] = (a << 24u) | (b << 16u) | (g << 8u) | r;
 }}
     "#, sdf_logic, color_logic)
