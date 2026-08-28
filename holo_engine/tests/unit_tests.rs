@@ -297,6 +297,39 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "wgpu")]
+    fn test_all_16_advanced_scenes_wgsl_compilation() {
+        use holo_engine::client::advanced_scenes::get_advanced_scene_wgsl;
+
+        let scenes = vec![
+            "ocean_sunset", "forest_soil", "cloudscape", "crystal_cave",
+            "floating_islands", "desert_dunes", "ice_glacier", "volcano_core",
+            "alien_planet", "deep_space", "black_hole", "earth_orbit",
+            "continental_biomes", "arctic_aurora", "volcanic_crystal_cave",
+            "floating_archipelago",
+        ];
+
+        let instance = wgpu::Instance::default();
+        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default())).unwrap();
+        let (device, _) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default(), None)).unwrap();
+
+        for s in scenes {
+            let wgsl = get_advanced_scene_wgsl(s);
+            let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some(s),
+                source: wgpu::ShaderSource::Wgsl(wgsl.into()),
+            });
+            let _pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some(s),
+                layout: None,
+                module: &module,
+                entry_point: "raymarch_main",
+                compilation_options: Default::default(),
+            });
+        }
+    }
+
+    #[test]
     fn test_galactic_nbody_dynamics_conservation() {
         use holo_engine::client::astrophysics::GalaxyNBodySystem;
 

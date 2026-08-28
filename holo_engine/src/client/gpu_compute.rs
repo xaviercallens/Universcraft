@@ -204,10 +204,11 @@ impl GPUComputeManager {
                 fov = 50.0;
                 max_dist = 1500.0;
             },
-            "black_hole" => {
-                camera_pos = [0.0, 3.0, -15.0];
-                camera_dir = [0.0, -0.15, 1.0];
-                max_dist = 200.0;
+            "cloudscape" => {
+                camera_pos = [0.0, 1.2, -14.0];
+                camera_dir = [0.0, 0.22, 1.0];
+                fov = 68.0;
+                max_dist = 100.0;
             },
             _ => {}
         }
