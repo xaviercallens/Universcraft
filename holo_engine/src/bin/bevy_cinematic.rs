@@ -3,17 +3,17 @@ use bevy::{
         bloom::BloomSettings,
         tonemapping::Tonemapping,
     },
-    pbr::{CascadeShadowConfigBuilder, DirectionalLightShadowMap, ScreenSpaceAmbientOcclusionBundle, ScreenSpaceAmbientOcclusionSettings},
+    pbr::{CascadeShadowConfigBuilder, DirectionalLightShadowMap, ScreenSpaceAmbientOcclusionBundle},
     prelude::*,
-    render::{
-        mesh::{Indices, PrimitiveTopology},
-        render_asset::RenderAssetUsages,
-    },
 };
-use holo_engine::client::bevy_pipeline::triplanar_material::TriplanarMaterial;
+use holo_engine::client::bevy_pipeline::{
+    gpu_instancing::GpuInstancingPlugin,
+    marching_cubes::{extract_surface_mesh, MarchingCubesPlugin},
+    triplanar_material::TriplanarMaterial,
+};
 
 fn main() {
-    println!("🎬 Launching Bevy Cinematic Viewer (Triplanar, SSAO, Bloom, CSM, ACES)");
+    println!("🎬 Launching Bevy Cinematic Viewer (Phase 4 - Zero-Copy GPU)");
     
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -25,61 +25,13 @@ fn main() {
             ..default()
         }))
         .add_plugins(MaterialPlugin::<TriplanarMaterial>::default())
+        // Include our new architecture modules
+        .add_plugins(GpuInstancingPlugin)
+        .add_plugins(MarchingCubesPlugin)
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
         .add_systems(Startup, setup)
         .add_systems(Update, rotate_camera)
         .run();
-}
-
-fn create_deformed_terrain_mesh() -> Mesh {
-    let size = 50.0;
-    let subdivisions = 100;
-    let mut positions = Vec::new();
-    let mut normals = Vec::new();
-    let mut uvs = Vec::new();
-    let mut indices = Vec::new();
-
-    let step = size / subdivisions as f32;
-    let half_size = size / 2.0;
-
-    for z in 0..=subdivisions {
-        for x in 0..=subdivisions {
-            let px = x as f32 * step - half_size;
-            let pz = z as f32 * step - half_size;
-            
-            // Dune equation
-            let py = f32::sin(px * 0.2 + f32::sin(pz * 0.15)) * 4.0 + f32::sin(pz * 0.3 - px * 0.1) * 2.0;
-            
-            positions.push([px, py, pz]);
-            normals.push([0.0, 1.0, 0.0]); // Will be recomputed later
-            uvs.push([x as f32 / subdivisions as f32, z as f32 / subdivisions as f32]);
-        }
-    }
-
-    for z in 0..subdivisions {
-        for x in 0..subdivisions {
-            let start = z * (subdivisions + 1) + x;
-            indices.push(start);
-            indices.push(start + subdivisions + 1);
-            indices.push(start + 1);
-
-            indices.push(start + 1);
-            indices.push(start + subdivisions + 1);
-            indices.push(start + subdivisions + 2);
-        }
-    }
-
-    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default());
-    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
-    mesh.insert_indices(Indices::U32(indices));
-    mesh.compute_normals(); // Bevy function to compute smooth normals!
-    
-    // In Bevy 0.14, we need tangents if normal maps are used!
-    // mesh.generate_tangents().unwrap(); // Wait, triplanar normal mapping doesn't use standard UV tangents. We map manually in shader.
-    
-    mesh
 }
 
 fn setup(
@@ -88,6 +40,7 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<TriplanarMaterial>>,
 ) {
+    // 1. Post-Processing & Cinematic Camera
     commands.spawn((
         Camera3dBundle {
             camera: Camera {
@@ -95,13 +48,14 @@ fn setup(
                 ..default()
             },
             tonemapping: Tonemapping::AcesFitted,
-            transform: Transform::from_xyz(-10.0, 10.0, 20.0).looking_at(Vec3::ZERO, Vec3::Y),
+            transform: Transform::from_xyz(-10.0, 15.0, 20.0).looking_at(Vec3::new(0.0, 5.0, 0.0), Vec3::Y),
             ..default()
         },
         BloomSettings::default(),
         ScreenSpaceAmbientOcclusionBundle::default(),
     ));
 
+    // 2. Cascaded Shadow Maps (Sun)
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
             illuminance: 10000.0,
@@ -117,6 +71,7 @@ fn setup(
         ..default()
     });
 
+    // 3. Load Triplanar Materials
     let mat = materials.add(TriplanarMaterial {
         sand_color: asset_server.load("textures/sand_color.jpg"),
         sand_normal: asset_server.load("textures/sand_normal.jpg"),
@@ -128,11 +83,27 @@ fn setup(
         texture_scale: 1.0,
     });
 
-    commands.spawn(MaterialMeshBundle {
-        mesh: meshes.add(create_deformed_terrain_mesh()),
-        material: mat,
-        ..default()
-    });
+    // 4. Dispatch the multithreaded Marching Cubes (fast-surface-nets)
+    // Generate a massive 9-chunk terrain (3x3 grid) via the Zero-Copy pipeline
+    let chunk_size = 32.0;
+    let voxel_size = 1.0;
+    
+    println!("⛰️ Generating SDF Terrain (Marching Cubes) via fast-surface-nets + Rayon...");
+    
+    for cx in -1..=1 {
+        for cz in -1..=1 {
+            let offset = Vec3::new(cx as f32 * chunk_size, -10.0, cz as f32 * chunk_size);
+            // This runs the extremely fast Rayon par_iter under the hood
+            let mesh = extract_surface_mesh(offset, voxel_size);
+            
+            commands.spawn(MaterialMeshBundle {
+                mesh: meshes.add(mesh),
+                material: mat.clone(),
+                transform: Transform::from_translation(offset),
+                ..default()
+            });
+        }
+    }
 }
 
 fn rotate_camera(time: Res<Time>, mut query: Query<&mut Transform, With<Camera3d>>) {
