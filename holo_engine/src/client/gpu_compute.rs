@@ -222,6 +222,18 @@ impl GPUComputeManager {
                 fov = 68.0;
                 max_dist = 280.0;
             },
+            "ice_glacier" => {
+                camera_pos = [0.0, 36.0, -40.0];
+                camera_dir = [0.0, -0.38, 0.925];
+                fov = 68.0;
+                max_dist = 300.0;
+            },
+            "black_hole" => {
+                camera_pos = [0.0, 5.5, -22.0];
+                camera_dir = [0.0, -0.24, 0.97];
+                fov = 65.0;
+                max_dist = 250.0;
+            },
             _ => {}
         }
 
