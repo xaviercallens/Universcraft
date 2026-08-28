@@ -251,6 +251,32 @@
             };
             @group(0) @binding(0) var<uniform> u: Uniforms;
 
+            fn hash21(p: vec2<f32>) -> f32 {
+                var p3 = fract(vec3<f32>(p.xyx) * 0.1031);
+                p3 += dot(p3, p3.yzx + 33.33);
+                return fract((p3.x + p3.y) * p3.z);
+            }
+
+            fn ocean_wave_h(xz: vec2<f32>, t: f32) -> f32 {
+                let d1 = vec2<f32>(0.82, 0.57);
+                let d2 = vec2<f32>(-0.62, 0.78);
+                let d3 = vec2<f32>(0.94, -0.34);
+                let d4 = vec2<f32>(0.73, 0.68);
+                var h = 0.18 * sin(dot(xz, d1) * 0.38 - 1.93 * t);
+                h += 0.09 * sin(dot(xz, d2) * 0.88 - 2.94 * t + 1.4);
+                h += 0.04 * sin(dot(xz, d3) * 2.1 - 4.54 * t + 2.8);
+                h += 0.015 * sin(dot(xz, d4) * 5.2 - 7.14 * t + 0.9);
+                return h;
+            }
+
+            fn ocean_norm(xz: vec2<f32>, t: f32) -> vec3<f32> {
+                let eps = 0.02;
+                let h0 = ocean_wave_h(xz, t);
+                let dx = (ocean_wave_h(xz + vec2<f32>(eps, 0.0), t) - h0) / eps;
+                let dz = (ocean_wave_h(xz + vec2<f32>(0.0, eps), t) - h0) / eps;
+                return normalize(vec3<f32>(-dx, 1.0, -dz));
+            }
+
             @vertex
             fn vs_main(@builtin(vertex_index) vid: u32) -> @builtin(position) vec4<f32> {
                 var pos = array<vec2<f32>, 4>(
@@ -270,18 +296,90 @@
                 let up = cross(right, forward);
                 let fov_rad = u.fov * 0.0174533;
                 let ray_dir = normalize(forward + (uv.x * right + uv.y * up) * tan(fov_rad * 0.5));
+                let cam_pos = vec3<f32>(0.0, -3.2, -7.0);
 
-                if (ray_dir.y >= 0.0) {
-                    let sky = mix(vec3<f32>(0.9, 0.45, 0.2), vec3<f32>(0.05, 0.1, 0.3), ray_dir.y);
-                    let sun = pow(max(dot(ray_dir, normalize(vec3<f32>(0.0, 0.15, -1.0))), 0.0), 32.0);
-                    return vec4<f32>(sky + vec3<f32>(1.0, 0.8, 0.3) * sun, 1.0);
+                let sun_underwater = normalize(vec3<f32>(0.35 / 1.3333, 0.89, 0.45 / 1.3333));
+                let sun_dir = normalize(vec3<f32>(0.35, 0.82, 0.45));
+                let sigma_ext = vec3<f32>(0.392, 0.077, 0.053);
+                let sigma_scat = vec3<f32>(0.012, 0.022, 0.038);
+
+                var hit_surface = false;
+                var t_hit = 50.0;
+                if (ray_dir.y > 0.001) {
+                    let t_plane = -cam_pos.y / ray_dir.y;
+                    var t_curr = max(t_plane - 1.5, 0.05);
+                    for (var i = 0; i < 36; i++) {
+                        let p = cam_pos + ray_dir * t_curr;
+                        let h = ocean_wave_h(p.xz, u.time);
+                        if (p.y >= h) {
+                            t_hit = t_curr;
+                            hit_surface = true;
+                            break;
+                        }
+                        t_curr += 0.40;
+                    }
                 }
-                let t = -u.cam_pos.y / ray_dir.y;
-                let hit = u.cam_pos + ray_dir * t;
-                let wave = sin(hit.x * 0.4 + u.time * 2.0) * cos(hit.z * 0.4 + u.time * 1.5) * 0.5;
-                let ocean_col = mix(vec3<f32>(0.01, 0.12, 0.25), vec3<f32>(0.02, 0.35, 0.45), wave + 0.5);
-                let sun_glint = pow(max(dot(reflect(ray_dir, vec3<f32>(0.0, 1.0, 0.0)), normalize(vec3<f32>(0.0, 0.15, -1.0))), 0.0), 64.0);
-                return vec4<f32>(ocean_col + vec3<f32>(1.0, 0.85, 0.5) * sun_glint * 1.5, 1.0);
+
+                var accum = vec3<f32>(0.0);
+                var trans = vec3<f32>(1.0);
+                let max_march = min(t_hit, 35.0);
+                let dt = max_march / 32.0;
+                let cos_phase = max(dot(ray_dir, sun_underwater), 0.0);
+                let phase_mie = 0.08 / pow(max(1.82 - 1.80 * cos_phase, 0.001), 1.5);
+                let sun_corona = pow(cos_phase, 32.0) * 6.0;
+
+                let u_axis = normalize(vec3<f32>(sun_underwater.z, 0.0, -sun_underwater.x));
+                let v_axis = cross(sun_underwater, u_axis);
+
+                for (var s = 0; s < 32; s++) {
+                    let p = cam_pos + ray_dir * (f32(s) + 0.5) * dt;
+                    let h_s = ocean_wave_h(p.xz, u.time);
+                    if (p.y > h_s) { break; }
+                    let depth = max(h_s - p.y, 0.0);
+
+                    let u_proj = dot(p, u_axis);
+                    let v_proj = dot(p, v_axis);
+                    let shaft_w1 = sin(u_proj * 1.5 + v_proj * 1.1) * cos(v_proj * 1.7 - u_proj * 0.9);
+                    let shaft_w2 = sin(u_proj * 3.6 - v_proj * 3.1) * cos(v_proj * 3.8 + u_proj * 2.3);
+                    let shaft = 0.15 + pow(shaft_w1 * 0.5 + 0.5, 4.0) * 5.0 + pow(shaft_w2 * 0.5 + 0.5, 6.0) * 4.0;
+
+                    let sun_trans = exp(-sigma_ext * (depth / 0.89));
+                    let shaft_color = mix(vec3<f32>(0.18, 0.88, 0.98), vec3<f32>(1.0, 0.95, 0.82), pow(cos_phase, 12.0));
+                    let sun_scatter = shaft_color * (phase_mie * 1.2 + sun_corona * 0.5) * shaft * sun_trans * 16.0;
+                    let ambient_scatter = vec3<f32>(0.0005, 0.012, 0.04) * exp(-depth * 0.08);
+
+                    let mote_noise = sin(p.x * 18.0 + sin(p.y * 22.0)) * cos(p.z * 19.0 + p.x * 12.0);
+                    var mote = vec3<f32>(0.0);
+                    if (mote_noise > 0.86) {
+                        mote = vec3<f32>(0.5, 0.9, 1.0) * pow((mote_noise - 0.86) / 0.14, 3.0) * 3.0 * sun_trans.b;
+                    }
+
+                    let inscatter = (sun_scatter + ambient_scatter + mote) * sigma_scat;
+                    let step_trans = exp(-sigma_ext * dt);
+                    accum += trans * inscatter * dt;
+                    trans *= step_trans;
+                }
+
+                var surface_col = vec3<f32>(0.0005, 0.008, 0.035);
+                if (hit_surface) {
+                    let p_hit = cam_pos + ray_dir * t_hit;
+                    let norm = ocean_norm(p_hit.xz, u.time);
+                    let cos_i = clamp(dot(ray_dir, norm), 0.0, 1.0);
+                    let sin2_t = 1.7777 * (1.0 - cos_i * cos_i);
+                    if (sin2_t <= 1.0) {
+                        let cos_t = sqrt(1.0 - sin2_t);
+                        let refr = normalize(1.3333 * ray_dir + (1.3333 * cos_i - cos_t) * (-norm));
+                        let cos_s = max(dot(refr, sun_dir), 0.0);
+                        let sky = mix(vec3<f32>(0.92, 0.65, 0.35), vec3<f32>(0.10, 0.42, 0.85), clamp(refr.y * 1.4, 0.0, 1.0))
+                                + vec3<f32>(1.0, 0.90, 0.75) * (pow(cos_s, 32.0) * 4.0 + pow(cos_s, 1024.0) * 20.0);
+                        surface_col = mix(sky, surface_col, 0.08);
+                    }
+                }
+
+                var col = accum + trans * surface_col;
+                // ACES Tone Mapping
+                col = clamp((col * (2.51 * col + 0.03)) / (col * (2.43 * col + 0.59) + 0.14), vec3<f32>(0.0), vec3<f32>(1.0));
+                return vec4<f32>(pow(col, vec3<f32>(1.0 / 2.2)), 1.0);
             }
         `,
         desert_dunes: `

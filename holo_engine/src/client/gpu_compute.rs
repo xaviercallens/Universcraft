@@ -210,6 +210,12 @@ impl GPUComputeManager {
                 fov = 68.0;
                 max_dist = 100.0;
             },
+            "ocean_sunset" => {
+                camera_pos = [0.0, -3.2, -7.0];
+                camera_dir = [0.0, 0.44, 0.898];
+                fov = 70.0;
+                max_dist = 50.0;
+            },
             _ => {}
         }
 
