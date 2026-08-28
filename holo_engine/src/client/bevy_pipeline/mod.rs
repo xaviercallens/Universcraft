@@ -3,3 +3,7 @@ pub mod marching_cubes;
 pub mod gpu_instancing;
 pub mod fluid_ssfr;
 pub mod tnn_physics_coupling;
+pub mod wgpu_surface_extractor;
+pub mod atmosphere_coupling;
+pub mod symplectic_salva_solver;
+pub mod burn_donn_inference;

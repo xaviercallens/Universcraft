@@ -401,6 +401,89 @@ mod tests {
         assert_eq!(flora.murray_exponent, 3.0);
         assert_eq!(flora.target_b0_clusters, 298);
     }
+
+    #[test]
+    #[cfg(feature = "full")]
+    fn test_wgpu_surface_extractor_and_splashsurf_reconstruction() {
+        use bevy::prelude::Vec3;
+        use holo_engine::client::bevy_pipeline::wgpu_surface_extractor::{
+            AsyncVoxelChunkManager, ChunkCoord, SplashsurfFluidReconstructor,
+        };
+
+        // 1. Test Async Chunk Streaming Horizon
+        let mut manager = AsyncVoxelChunkManager::default();
+        let (to_spawn, _to_despawn) = manager.update_horizon(Vec3::new(0.0, 10.0, 0.0));
+        assert!(!to_spawn.is_empty(), "Chunk manager must identify chunks to spawn");
+        assert!(to_spawn.contains(&ChunkCoord::new(0, 0, 0)));
+
+        // 2. Test Splashsurf SPH Continuous Surface Reconstruction
+        let reconstructor = SplashsurfFluidReconstructor::default();
+        let fluid_particles = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.4, 0.0, 0.0),
+            Vec3::new(0.0, 0.4, 0.0),
+            Vec3::new(0.0, 0.0, 0.4),
+        ];
+        let mesh = reconstructor.reconstruct_surface(&fluid_particles);
+        assert!(mesh.is_some(), "Splashsurf must reconstruct watertight mesh from particles");
+    }
+
+    #[test]
+    #[cfg(feature = "full")]
+    fn test_atmosphere_whittaker_thermodynamics_coupling() {
+        use holo_engine::client::bevy_pipeline::atmosphere_coupling::WhittakerAtmosphere;
+        use bevy::prelude::Vec3;
+
+        let mut atmosphere = WhittakerAtmosphere::default();
+        let initial_turbidity = atmosphere.mie_coeff;
+
+        // Tropical rainforest condition: 90% humidity, 28°C
+        atmosphere.update_from_whittaker(0.9, 28.0);
+        assert!(atmosphere.mie_coeff > initial_turbidity, "Higher humidity must increase Mie scattering turbidity");
+        assert!(atmosphere.cloud_coverage > 0.7, "High humidity must increase cloud coverage");
+
+        // Evaluates sky dome color
+        let sky_color = atmosphere.evaluate_sky_color(Vec3::Y);
+        assert!(sky_color.z > sky_color.x, "Zenith sky must show Rayleigh blue scattering dominance");
+    }
+
+    #[test]
+    #[cfg(feature = "full")]
+    fn test_symplectic_salva_leray_solenoidal_step() {
+        use holo_engine::client::bevy_pipeline::symplectic_salva_solver::SalvaFluidWorld;
+        use bevy::prelude::Vec3;
+
+        let mut world = SalvaFluidWorld::default();
+        world.spawn_fluid_block(Vec3::new(0.0, 2.0, 0.0), 3, 3, 3, 0.3);
+        assert_eq!(world.particles.len(), 27);
+
+        // Step simulation
+        world.step_simulation(0.01);
+
+        for p in &world.particles {
+            assert!(!p.velocity.x.is_nan());
+            assert!(!p.velocity.y.is_nan());
+            assert!(!p.velocity.z.is_nan());
+            assert!(p.velocity.length() <= world.enstrophy_cap, "Enstrophy bound must cap maximum velocity");
+            assert!(p.density >= world.rest_density * 0.5, "Density must remain physically bounded");
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "full")]
+    fn test_burn_donn_local_inference_stability() {
+        use holo_engine::client::bevy_pipeline::burn_donn_inference::BurnDonnEvaluator;
+
+        let donn = BurnDonnEvaluator::default();
+        let h1 = donn.evaluate_elevation(10.0, 20.0, 0.0);
+        let h2 = donn.evaluate_elevation(10.0, 20.0, 1.0);
+        let h3 = donn.evaluate_elevation(50.0, 80.0, 0.0);
+
+        assert!(!h1.is_nan());
+        assert!(!h2.is_nan());
+        assert!(!h3.is_nan());
+        assert!((h1 - h2).abs() > 0.0, "Time parameter must produce dynamic oscillatory terrain evolution");
+    }
 }
 
 
