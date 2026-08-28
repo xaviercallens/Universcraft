@@ -1,3 +1,4 @@
+#[cfg(feature = "wgpu")]
 use holo_engine::client::gpu_compute::GPUComputeManager;
 use image::{GenericImage, RgbaImage};
 use std::fs;
@@ -5,6 +6,8 @@ use std::time::Instant;
 
 #[tokio::main]
 async fn main() {
+#[cfg(feature = "wgpu")]
+{
     println!("==========================================================================");
     println!(" 🌌 HOLOENGINE HIGH-RESOLUTION MULTIVERSE OFFLINE RENDERER (1080p FHD)     ");
     println!("==========================================================================");
@@ -82,4 +85,9 @@ async fn main() {
     println!("✅ Saved Master High-Res Collage to public/gallery_4x5.png");
 
     println!("\n🎉 High-Resolution Offline Processing Completed in {:.2}s!", total_start.elapsed().as_secs_f32());
+}
+#[cfg(not(feature = "wgpu"))]
+{
+    eprintln!("wgpu feature required for highres generation");
+}
 }

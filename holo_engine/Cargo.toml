@@ -29,7 +29,7 @@ nalgebra = "0.35.0"
 [features]
 default = []
 wgpu = ["dep:wgpu"]
-full = ["dep:bevy", "dep:fast-surface-nets", "dep:burn", "dep:salva3d", "dep:wgpu"]
+full = ["dep:bevy", "dep:fast-surface-nets", "dep:burn", "dep:salva3d", "wgpu"]
 
 [dev-dependencies]
 criterion = "0.5"

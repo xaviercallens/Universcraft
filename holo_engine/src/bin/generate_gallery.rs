@@ -1,9 +1,11 @@
+#[cfg(feature = "wgpu")]
 use holo_engine::client::gpu_compute::GPUComputeManager;
 use image::{GenericImage, RgbaImage};
-use std::time::Instant;
 
 #[tokio::main]
 async fn main() {
+#[cfg(feature = "wgpu")]
+{
     println!("🎨 Generating 4x5 Gallery of all scenes...");
 
     let scenes = vec![
@@ -58,4 +60,9 @@ async fn main() {
     std::fs::create_dir_all("public/output").unwrap();
     collage.save("public/output/gallery_4x5.png").unwrap();
     println!("✅ Gallery saved to public/output/gallery_4x5.png");
+}
+#[cfg(not(feature = "wgpu"))]
+{
+    eprintln!("wgpu feature required for gallery generation");
+}
 }

@@ -1,12 +1,12 @@
-//! HoloEngine 3D — Local GCP NVIDIA T4 GPU Benchmarking & Validation Runner
-//! Executes native WGPU / WGSL Compute Shaders, 1080p Raymarching, and Kerr Black Hole Spacetime Benchmarks
-
+#[cfg(feature = "wgpu")]
 use holo_engine::client::gpu_compute::GPUComputeManager;
 use holo_engine::telemetry::metrics::TelemetrySystem;
 use std::time::Instant;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[cfg(feature = "wgpu")]
+{
     println!("============================================================");
     println!("  HoloEngine 3D — Local GCP Tesla T4 GPU Benchmarking Suite ");
     println!("  Executing Hardware WebGPU Compute Shader & Raymarching Pass ");
@@ -112,4 +112,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("============================================================");
 
     Ok(())
+}
+#[cfg(not(feature = "wgpu"))]
+{
+    println!("wgpu feature disabled");
+    Ok(())
+}
 }
