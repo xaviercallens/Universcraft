@@ -103,7 +103,7 @@ fn generate_k3_flora(
     // Bevy automatically batches all these entities into ONE draw call per mesh/material pair,
     // placing their transforms into a continuous GPU Storage Buffer.
     
-    commands.spawn_batch(branch_instances.into_iter().map(|transform| {
+    commands.spawn_batch(branch_instances.into_iter().map(move |transform| {
         (
             PbrBundle {
                 mesh: branch_mesh.clone(),
@@ -115,7 +115,7 @@ fn generate_k3_flora(
         )
     }));
 
-    commands.spawn_batch(leaf_instances.into_iter().map(|transform| {
+    commands.spawn_batch(leaf_instances.into_iter().map(move |transform| {
         (
             PbrBundle {
                 mesh: k3_disk_mesh.clone(),
