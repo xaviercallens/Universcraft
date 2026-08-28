@@ -175,10 +175,10 @@ impl GPUComputeManager {
 
         match scene_id {
             "earth_orbit" => {
-                camera_pos = [0.0, 6400.0, 12000.0];
-                camera_dir = [0.0, -0.0024, -1.0];
-                fov = 45.0;
-                max_dist = 20000.0;
+                camera_pos = [0.0, 20.0, -52.0];
+                camera_dir = [0.0, -0.36, 0.933];
+                fov = 52.0;
+                max_dist = 150.0;
             },
             "continental_biomes" => {
                 camera_pos = [120.0, 15.0, 300.0];
