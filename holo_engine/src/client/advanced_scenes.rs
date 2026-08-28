@@ -127,7 +127,7 @@ fn raymarch_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let e_aces = 0.14;
     color = clamp((color * (a_aces * color + b_aces)) / (color * (c_aces * color + d_aces) + e_aces), vec3<f32>(0.0), vec3<f32>(1.0));
 
-    let pixel_idx = global_id.x + global_id.y * bh_params.screen_width;
+    let pixel_idx = global_id.x + (bh_params.screen_height - 1u - global_id.y) * bh_params.screen_width;
     let r_u = u32(clamp(color.r * 255.0, 0.0, 255.0));
     let g_u = u32(clamp(color.g * 255.0, 0.0, 255.0));
     let b_u = u32(clamp(color.b * 255.0, 0.0, 255.0));
@@ -636,13 +636,22 @@ fn raymarch_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         ),
         "continental_biomes" => (
             r#"
+            r#"
             // Cinematic 2: Continental Biomes (Dunes to Rainforest)
-            let blend = smoothstep(-10.0, 10.0, p.x);
             
-            // Dunes (simplified distance)
-            let d_dunes = p.y + sin(p.x * 0.2 + p.z * 0.15) * 4.0;
+            // 1. Organic Ecotones (Biome Blending)
+            // We use X axis as a proxy for "Temperature/Humidity" gradient
+            let biome_threshold = p.x * 0.1; 
+            // Noise breaks the linear frontier into a natural fractal edge
+            let ecotone_noise = fbm3(p * 0.5) * 2.0; 
+            let blend = smoothstep(-1.5, 1.5, biome_threshold + ecotone_noise); // 0 = Desert, 1 = Jungle
             
-            // Forest (simplified distance)
+            // 2. Dunes (Desert Biome)
+            let dune = p.y + sin(p.x * 0.2 + sin(p.z * 0.15)) * 4.0 + sin(p.z * 0.3 - p.x * 0.1) * 2.0;
+            let ripples = sin(p.x * 15.0 + p.z * 5.0) * 0.03;
+            let d_dunes = dune + ripples;
+            
+            // 3. Forest (Jungle Biome)
             let soil = p.y + 1.5;
             let spacing = 6.0;
             let cell = floor((p.xz + vec2<f32>(spacing*0.5)) / spacing);
@@ -652,33 +661,58 @@ fn raymarch_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             let leaves = length(local_p - vec3<f32>(0.0, 3.5, 0.0)) - 2.5;
             let d_forest = min(soil, min(max(trunk, abs(local_p.y - 1.0) - 2.5), leaves));
             
-            let final_d = mix(d_dunes, d_forest, blend);
+            // Smooth Min for topological blending of the terrain
+            let h = clamp(0.5 + 0.5 * (d_dunes - d_forest) / 2.0, 0.0, 1.0);
+            let final_d = mix(d_dunes, d_forest, h) - 2.0 * h * (1.0 - h);
             
-            if (final_d == d_dunes) { return vec2<f32>(final_d, 21.0); }
-            if (final_d == d_forest && d_forest == leaves) { return vec2<f32>(final_d, 22.0); }
-            return vec2<f32>(final_d, 23.0);
+            // Encode the blend factor into the material ID (fractional part)
+            return vec2<f32>(final_d, 21.0 + blend);
             "#,
             r#"
-            let sun_dir = normalize(vec3<f32>(0.9, 0.08, 0.3));
+            let sun_dir = normalize(vec3<f32>(0.9, 0.2, 0.3));
             let sky_dir = normalize(vec3<f32>(-0.5, 0.9, -0.5));
             let sun_diff = max(dot(normal, sun_dir), 0.0);
             let sky_diff = max(dot(normal, sky_dir), 0.0) * 0.4;
-            let sun_col = vec3<f32>(1.0, 0.6, 0.0);
-            let sky_col = vec3<f32>(0.22, 0.0, 0.4);
             
-            if (mat_id == 21.0) {
-                let ripples = sin(hit_pos.x * 15.0 + hit_pos.z * 5.0) * 0.03;
-                let bump_normal = normalize(normal + vec3<f32>(ripples, 0.0, ripples));
-                let b_diff = max(dot(bump_normal, sun_dir), 0.0);
-                color = vec3<f32>(0.9, 0.7, 0.4) * (sun_col * b_diff + sky_col * sky_diff);
+            // Extract the Biome Blend Factor
+            let blend = fract(mat_id); 
+            
+            var shadow = 1.0;
+            var ao = 1.0;
+            if (t < ray_params.max_dist) {
+                shadow = calc_softshadow(hit_pos + normal * 0.05, sun_dir, 0.1, 25.0, 5.0);
+                ao = calc_ao(hit_pos, normal);
             }
-            else if (mat_id == 22.0) {
-                let sss = pow(max(dot(ray_dir, -sun_dir), 0.0), 4.0);
-                color = vec3<f32>(0.0, 1.0, 0.53) * (sun_col * sun_diff + sky_col * sky_diff) + vec3<f32>(0.5, 1.0, 0.2) * sss;
-            }
-            else {
-                color = vec3<f32>(0.15, 0.1, 0.05) * (sun_col * sun_diff + sky_col * sky_diff);
-            }
+            
+            // PBR Triplanar Mapping Simulation (Fake procedural textures mapped from 3 axes)
+            let bf = abs(normal);
+            let tri_weights = bf / (bf.x + bf.y + bf.z);
+            let tex_scale = 0.5;
+            
+            // Desert Triplanar Texture
+            let sand_noise = fbm3(hit_pos * tex_scale) * tri_weights.x 
+                           + fbm3(hit_pos.yzx * tex_scale) * tri_weights.y 
+                           + fbm3(hit_pos.zxy * tex_scale) * tri_weights.z;
+            let sand_albedo = mix(vec3<f32>(0.9, 0.7, 0.4), vec3<f32>(0.7, 0.5, 0.3), sand_noise);
+            
+            // Jungle Triplanar Texture (Soil/Moss)
+            let moss_noise = fbm3(hit_pos * tex_scale * 2.0) * tri_weights.x 
+                           + fbm3(hit_pos.yzx * tex_scale * 2.0) * tri_weights.y 
+                           + fbm3(hit_pos.zxy * tex_scale * 2.0) * tri_weights.z;
+            let moss_albedo = mix(vec3<f32>(0.1, 0.2, 0.05), vec3<f32>(0.2, 0.4, 0.1), moss_noise);
+            
+            // Biome Blending using the Ecotone smoothstep
+            let terrain_albedo = mix(sand_albedo, moss_albedo, blend);
+            
+            // Final Color Compositing
+            let sun_col = vec3<f32>(1.0, 0.8, 0.5) * shadow;
+            let sky_col = vec3<f32>(0.2, 0.4, 0.8);
+            color = terrain_albedo * (sun_col * sun_diff + sky_col * sky_diff) * ao;
+            
+            // Global Fog
+            let fog = 1.0 - exp(-0.01 * t);
+            let sky_bg = mix(vec3<f32>(0.8, 0.6, 0.4), vec3<f32>(0.2, 0.4, 0.8), clamp(ray_dir.y * 2.0, 0.0, 1.0));
+            color = mix(color, sky_bg, fog);
             "#
         ),
         "arctic_aurora" => (
@@ -956,7 +990,7 @@ fn raymarch_main(@builtin(global_invocation_id) global_id: vec3<u32>) {{
     let b = u32(clamp(color.b * 255.0, 0.0, 255.0));
     let a = 255u;
 
-    let pixel_idx = global_id.x + global_id.y * ray_params.screen_width;
+    let pixel_idx = global_id.x + (ray_params.screen_height - 1u - global_id.y) * ray_params.screen_width;
     color_buffer[pixel_idx] = (a << 24u) | (b << 16u) | (g << 8u) | r;
 }}
     "#, sdf_logic, color_logic)
