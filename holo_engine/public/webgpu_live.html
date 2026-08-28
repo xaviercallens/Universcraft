@@ -120,8 +120,10 @@
         <label for="scene-select">Physical Biome / Shader</label>
         <select id="scene-select">
             <option value="black_hole">🕳️ Kerr Black Hole (T-Dual Relativistic)</option>
+            <option value="magma_planck">🔥 Volcano Magma Core (Planck Blackbody 800K-1500K)</option>
             <option value="ocean_waves">🌊 Ocean Hydrodynamics (Navier-Stokes)</option>
             <option value="desert_dunes">🏜️ Aeolian Desert Dunes (1-Lipschitz)</option>
+            <option value="crystal_cave">💎 Crystal Cave (Fresnel SSR & IOR 1.54)</option>
             <option value="atmosphere">☁️ Atmospheric Clouds (Rayleigh-Mie)</option>
         </select>
     </div>
@@ -365,6 +367,116 @@
                 let cloud = sin(ray_dir.x * 6.0 + u.time * 0.2) * cos(ray_dir.z * 6.0 + u.time * 0.15);
                 let cloud_val = smoothstep(0.2, 0.8, cloud);
                 let col = mix(sky_grad, vec3<f32>(1.0, 1.0, 1.0), cloud_val * 0.7);
+                return vec4<f32>(col, 1.0);
+            }
+        `,
+        magma_planck: `
+            struct Uniforms {
+                cam_pos: vec3<f32>,
+                time: f32,
+                cam_dir: vec3<f32>,
+                fov: f32,
+                resolution: vec2<f32>,
+                _pad: vec2<f32>,
+            };
+            @group(0) @binding(0) var<uniform> u: Uniforms;
+
+            fn planck_blackbody(temp_k: f32) -> vec3<f32> {
+                let t = temp_k / 100.0;
+                var r = 1.0;
+                var g = clamp(99.47 * log(max(t, 1.0)) - 161.12, 0.0, 255.0) / 255.0;
+                var b = clamp(138.51 * log(max(t - 10.0, 1.0)) - 305.04, 0.0, 255.0) / 255.0;
+                return vec3<f32>(r, g, b);
+            }
+
+            @vertex
+            fn vs_main(@builtin(vertex_index) vid: u32) -> @builtin(position) vec4<f32> {
+                var pos = array<vec2<f32>, 4>(
+                    vec2<f32>(-1.0, -1.0),
+                    vec2<f32>( 1.0, -1.0),
+                    vec2<f32>(-1.0,  1.0),
+                    vec2<f32>( 1.0,  1.0)
+                );
+                return vec4<f32>(pos[vid], 0.0, 1.0);
+            }
+
+            @fragment
+            fn fs_main(@builtin(position) frag_pos: vec4<f32>) -> @location(0) vec4<f32> {
+                let uv = (frag_pos.xy - 0.5 * u.resolution) / u.resolution.y;
+                let forward = normalize(u.cam_dir);
+                let right = normalize(cross(forward, vec3<f32>(0.0, 1.0, 0.0)));
+                let up = cross(right, forward);
+                let fov_rad = u.fov * 0.0174533;
+                let ray_dir = normalize(forward + (uv.x * right + uv.y * up) * tan(fov_rad * 0.5));
+                var ray_pos = u.cam_pos;
+
+                var col = vec3<f32>(0.05, 0.02, 0.01);
+                var t = 0.0;
+                for (var i = 0; i < 64; i++) {
+                    let p = ray_pos + ray_dir * t;
+                    let wave = sin(p.x * 0.8 + u.time * 1.5) * cos(p.z * 0.8 + u.time) * 0.4;
+                    let d = p.y - wave + 1.0;
+                    if (d < 0.01) {
+                        let temp_k = 1000.0 + sin(p.x * 2.0 + u.time * 2.0) * 400.0;
+                        let glow = planck_blackbody(temp_k) * 2.0;
+                        let crust = vec3<f32>(0.1, 0.08, 0.06);
+                        let pattern = sin(p.x * 4.0) * sin(p.z * 4.0);
+                        col = select(glow, crust, pattern > 0.3);
+                        break;
+                    }
+                    t += d * 0.9;
+                    if (t > 30.0) { break; }
+                }
+                return vec4<f32>(col, 1.0);
+            }
+        `,
+        crystal_cave: `
+            struct Uniforms {
+                cam_pos: vec3<f32>,
+                time: f32,
+                cam_dir: vec3<f32>,
+                fov: f32,
+                resolution: vec2<f32>,
+                _pad: vec2<f32>,
+            };
+            @group(0) @binding(0) var<uniform> u: Uniforms;
+
+            @vertex
+            fn vs_main(@builtin(vertex_index) vid: u32) -> @builtin(position) vec4<f32> {
+                var pos = array<vec2<f32>, 4>(
+                    vec2<f32>(-1.0, -1.0),
+                    vec2<f32>( 1.0, -1.0),
+                    vec2<f32>(-1.0,  1.0),
+                    vec2<f32>( 1.0,  1.0)
+                );
+                return vec4<f32>(pos[vid], 0.0, 1.0);
+            }
+
+            @fragment
+            fn fs_main(@builtin(position) frag_pos: vec4<f32>) -> @location(0) vec4<f32> {
+                let uv = (frag_pos.xy - 0.5 * u.resolution) / u.resolution.y;
+                let forward = normalize(u.cam_dir);
+                let right = normalize(cross(forward, vec3<f32>(0.0, 1.0, 0.0)));
+                let up = cross(right, forward);
+                let fov_rad = u.fov * 0.0174533;
+                let ray_dir = normalize(forward + (uv.x * right + uv.y * up) * tan(fov_rad * 0.5));
+                var ray_pos = u.cam_pos;
+
+                var col = vec3<f32>(0.02, 0.04, 0.08);
+                var t = 0.0;
+                for (var i = 0; i < 64; i++) {
+                    let p = ray_pos + ray_dir * t;
+                    let octa = (abs(p.x) + abs(p.y) + abs(p.z)) - 2.5;
+                    if (octa < 0.01) {
+                        let n = normalize(vec3<f32>(sign(p.x), sign(p.y), sign(p.z)));
+                        let fresnel = pow(1.0 - max(dot(-ray_dir, n), 0.0), 3.0);
+                        let crystal_tint = vec3<f32>(0.2, 0.8, 1.0);
+                        col = mix(crystal_tint * 0.4, vec3<f32>(0.9, 0.95, 1.0), fresnel);
+                        break;
+                    }
+                    t += octa * 0.85;
+                    if (t > 25.0) { break; }
+                }
                 return vec4<f32>(col, 1.0);
             }
         `
