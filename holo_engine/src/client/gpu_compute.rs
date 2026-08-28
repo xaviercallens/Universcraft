@@ -217,8 +217,8 @@ impl GPUComputeManager {
                 max_dist = 50.0;
             },
             "desert_dunes" => {
-                camera_pos = [12.0, 26.0, -52.0];
-                camera_dir = [0.32, -0.30, 0.90];
+                camera_pos = [0.0, 15.0, -42.0];
+                camera_dir = [0.34, -0.16, 0.92];
                 fov = 68.0;
                 max_dist = 280.0;
             },

@@ -468,13 +468,19 @@
                 let fov_rad = u.fov * 0.0174533;
                 let ray_dir = normalize(forward + (uv.x * right + uv.y * up) * tan(fov_rad * 0.5));
 
-                let sun_dir = normalize(vec3<f32>(0.88, 0.24, 0.40));
-                let sun_color = vec3<f32>(3.4, 2.3, 1.2);
-                let sand_albedo = vec3<f32>(0.95, 0.72, 0.42);
+                let sun_dir = normalize(vec3<f32>(-0.82, 0.36, 0.45));
+                let sun_color = vec3<f32>(3.2, 2.2, 1.1);
+                let sand_albedo = vec3<f32>(0.96, 0.65, 0.28);
 
+                let cos_theta = max(ray_dir.y, 0.0);
                 let sun_align = max(dot(ray_dir, sun_dir), 0.0);
-                let sky = mix(vec3<f32>(0.92, 0.68, 0.42), vec3<f32>(0.12, 0.35, 0.75), clamp(ray_dir.y * 2.5 + 0.1, 0.0, 1.0))
-                        + vec3<f32>(1.0, 0.88, 0.65) * (pow(sun_align, 768.0) * 14.0 + pow(sun_align, 16.0) * 1.2);
+                let sky_zenith = vec3<f32>(0.025, 0.16, 0.62);
+                let sky_mid = vec3<f32>(0.12, 0.42, 0.85);
+                let sky_horizon = vec3<f32>(0.92, 0.72, 0.48);
+
+                var sky = mix(sky_mid, sky_zenith, pow(cos_theta, 0.55));
+                sky = mix(sky_horizon, sky, smoothstep(0.0, 0.22, cos_theta));
+                sky += vec3<f32>(1.0, 0.92, 0.75) * (pow(sun_align, 1024.0) * 24.0 + pow(sun_align, 24.0) * 1.8);
 
                 var p = u.cam_pos;
                 var col = sky;
@@ -489,28 +495,30 @@
                         let norm = eval_norm(p.xz);
                         let n_dot_l = max(dot(norm, sun_dir), 0.0);
                         
-                        // Warm ambient bounce
-                        let bounce_diff = max(dot(norm, normalize(vec3<f32>(-sun_dir.x, 0.65, -sun_dir.z))), 0.0);
-                        let warm_bounce = sand_albedo * sun_color * 0.24 * bounce_diff;
-                        let sky_amb = mix(vec3<f32>(0.08, 0.18, 0.38), vec3<f32>(0.65, 0.48, 0.32), norm.y * 0.5 + 0.5) * 0.18;
+                        // Warm ambient bounce in shadows
+                        let bounce_diff = max(dot(norm, normalize(vec3<f32>(-sun_dir.x, 0.6, -sun_dir.z))), 0.0);
+                        let warm_bounce = vec3<f32>(0.58, 0.26, 0.10) * bounce_diff * 0.55;
+                        let sky_amb = vec3<f32>(0.04, 0.14, 0.38) * (norm.y * 0.5 + 0.5) * 0.35;
                         
                         // SSS on 34° knife edge crests
-                        let sss = vec3<f32>(1.0, 0.62, 0.22) * pow(max(-dot(norm, sun_dir) + 0.45, 0.0), 3.0) * d_info.y * 1.8;
+                        let sss = vec3<f32>(1.0, 0.55, 0.15) * pow(max(-dot(norm, sun_dir) + 0.35, 0.0), 3.0) * d_info.y * 2.5;
                         
-                        // Direct + ambient + SSS
+                        // High-contrast illumination
                         let surf = sand_albedo * sun_color * n_dot_l + warm_bounce + sky_amb + sss;
-                        let fog = 1.0 - exp(-0.008 * t);
-                        col = mix(surf, vec3<f32>(0.94, 0.75, 0.52), fog);
+                        let fog = 1.0 - exp(-0.0018 * t);
+                        col = mix(surf, vec3<f32>(0.75, 0.65, 0.58), fog);
                         break;
                     }
                     p += ray_dir * max(dist, 0.08);
                     t += max(dist, 0.08);
-                    if (t > 250.0) { break; }
+                    if (t > 280.0) { break; }
                 }
 
-                // ACES Tone Mapping
-                col = clamp((col * (2.51 * col + 0.03)) / (col * (2.43 * col + 0.59) + 0.14), vec3<f32>(0.0), vec3<f32>(1.0));
-                return vec4<f32>(pow(col, vec3<f32>(1.0 / 2.2)), 1.0);
+                // S-Curve & ACES Tone Mapping
+                var mapped = clamp((col * (2.51 * col + 0.03)) / (col * (2.43 * col + 0.59) + 0.14), vec3<f32>(0.0), vec3<f32>(1.0));
+                mapped = pow(mapped, vec3<f32>(1.12));
+                mapped = smoothstep(vec3<f32>(0.02), vec3<f32>(0.98), mapped);
+                return vec4<f32>(pow(mapped, vec3<f32>(1.0 / 2.2)), 1.0);
             }
         `,
         atmosphere: `

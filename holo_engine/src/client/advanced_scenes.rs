@@ -371,8 +371,8 @@ fn evaluate_dune_elevation(xz: vec2<f32>) -> vec2<f32> {
     }
 
     // 3. Subtle Aeolian Sand Ripples (only on windward stoss slope, zero on avalanched slip face!)
-    // Wavelength ~ 0.8m, Height ~ 0.018m (delicate, natural)
-    let rip_phase = u * 7.5 + sin(v * 0.7) * 0.4;
+    // Organic perturbed wavefronts (Wavelength ~ 0.8m, Height ~ 0.018m)
+    let rip_phase = (u * 0.88 + v * 0.35) * 8.5 + sin(u * 0.07 + v * 0.09) * 2.2;
     let w_rip = fract(rip_phase / 6.2831853);
     let ripple_shape = sin(w_rip * 6.2831853) * 0.018 * (1.0 - is_slip_face);
 
@@ -434,6 +434,28 @@ fn evaluate_dune_shadow(origin: vec3<f32>, sun_dir: vec3<f32>) -> f32 {
     return clamp(shadow, 0.0, 1.0);
 }
 
+// Physically-Based Rayleigh-Nishita Desert Sky Model (Deep Azure to Warm Desert Horizon)
+fn evaluate_desert_sky(ray_dir: vec3<f32>, sun_dir: vec3<f32>) -> vec3<f32> {
+    let y = max(ray_dir.y, 0.0);
+    let sun_align = max(dot(ray_dir, sun_dir), 0.0);
+
+    // Deep Cobalt Zenith -> Vibrant Azure Mid-Sky -> Warm Soft Golden Horizon
+    let sky_zenith = vec3<f32>(0.03, 0.20, 0.65);   // Rich deep azure
+    let sky_mid    = vec3<f32>(0.15, 0.48, 0.86);   // Crisp desert sky
+    let sky_horiz  = vec3<f32>(0.84, 0.74, 0.58);   // Warm desert horizon
+
+    // Smooth continuous Rayleigh elevation curve
+    var sky = mix(sky_horiz, sky_mid, pow(clamp(y * 3.0, 0.0, 1.0), 0.7));
+    sky = mix(sky, sky_zenith, pow(clamp(y * 1.5, 0.0, 1.0), 1.4));
+
+    // Solar Disc and Mie forward scatter
+    let sun_disc = pow(sun_align, 1024.0) * 18.0;
+    let mie_aureole = pow(sun_align, 18.0) * 1.4 + pow(sun_align, 4.0) * 0.3;
+    let sun_color = vec3<f32>(1.0, 0.94, 0.80);
+
+    return sky + sun_color * (sun_disc + mie_aureole);
+}
+
 @compute @workgroup_size(16, 16)
 fn raymarch_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     if (global_id.x >= dune_params.screen_width || global_id.y >= dune_params.screen_height) {
@@ -451,9 +473,9 @@ fn raymarch_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let ray_dir = normalize(forward + uv.x * right + uv.y * up);
     let cam_pos = dune_params.camera_pos;
 
-    // Grazing Golden Hour Sun (low side angle casting deep shadows across dunes)
-    let sun_dir = normalize(vec3<f32>(0.78, 0.22, 0.58));
-    let sun_color = vec3<f32>(3.8, 2.5, 1.2); // Warm golden direct solar irradiance
+    // Cross-Light Sun (Side lighting creating sharp shadow contrast on barchan slip faces)
+    let sun_dir = normalize(vec3<f32>(-0.82, 0.36, 0.45));
+    let sun_color = vec3<f32>(2.4, 1.7, 0.9); // Calibrated warm solar irradiance (pleasing & non-glaring)
 
     // Primary Bounded Raymarching
     var hit = false;
@@ -487,16 +509,7 @@ fn raymarch_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         if (t > dune_params.max_dist) { break; }
     }
 
-    // Atmospheric Rayleigh/Mie Sky Model (Smooth, Banding-Free)
-    let sun_align = max(dot(ray_dir, sun_dir), 0.0);
-    let sun_disk = pow(sun_align, 768.0) * 16.0;
-    let sun_corona = pow(sun_align, 14.0) * 1.5;
-    let sky_zenith = vec3<f32>(0.14, 0.38, 0.82);
-    let sky_horizon = vec3<f32>(0.95, 0.65, 0.38);
-    let sky_base = mix(sky_horizon, sky_zenith, clamp(ray_dir.y * 2.2 + 0.15, 0.0, 1.0));
-    let sky_radiance = sky_base + vec3<f32>(1.0, 0.88, 0.65) * (sun_disk + sun_corona);
-
-    var final_color = sky_radiance;
+    var final_color = evaluate_desert_sky(ray_dir, sun_dir);
 
     if (hit) {
         let hit_pos = cam_pos + ray_dir * t_hit;
@@ -508,45 +521,51 @@ fn raymarch_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let n_dot_l = max(dot(normal, sun_dir), 0.0);
         let shadow = evaluate_dune_shadow(hit_pos + normal * 0.08, sun_dir);
 
-        // 2. Warm Sand Ambient Bouncing & Inter-Reflections
-        // The vast sunlit dunes reflect warm amber light into the shadowed slip faces
-        let sand_albedo = vec3<f32>(0.96, 0.74, 0.42);
+        // 2. High-Contrast Dune Shading
+        // Sunlit sand: Authentic Saharan golden ochre
+        let sand_albedo = vec3<f32>(0.90, 0.52, 0.18);
+
+        // Shadowed slip face: Deep warm terracotta-amber bounce + subtle sky blue ambient
         let bounce_dir = normalize(vec3<f32>(-sun_dir.x, 0.6, -sun_dir.z));
         let bounce_diff = max(dot(normal, bounce_dir), 0.0);
-        let warm_bounce = vec3<f32>(0.92, 0.55, 0.25) * (sun_color * 0.35) * bounce_diff;
+        let warm_bounce = vec3<f32>(0.48, 0.18, 0.05) * bounce_diff * 0.40;
 
-        // Sky ambient diffuse fill (cool blue-amber fill from zenith)
-        let sky_ambient = mix(vec3<f32>(0.08, 0.16, 0.36), vec3<f32>(0.68, 0.48, 0.30), normal.y * 0.5 + 0.5) * 0.22;
+        // Sky ambient diffuse fill (cool blue skylight hitting upward surfaces in shadow)
+        let sky_ambient = vec3<f32>(0.02, 0.08, 0.24) * (normal.y * 0.5 + 0.5) * 0.30;
 
         // 3. Subsurface Scattering (Sand Translucency on Knife-Edge 34° Crests)
-        let sss_backlight = pow(max(-dot(normal, sun_dir) + 0.4, 0.0), 3.0);
-        let sss_glow = vec3<f32>(1.0, 0.70, 0.25) * sss_backlight * crest_factor * 2.2;
+        let sss_backlight = pow(max(-dot(normal, sun_dir) + 0.35, 0.0), 3.0);
+        let sss_glow = vec3<f32>(1.0, 0.55, 0.15) * sss_backlight * crest_factor * 2.5;
 
         // 4. Triplanar Mineral Micro-Glints
         let glint = evaluate_sand_micro_glint(hit_pos, normal, ray_dir, sun_dir) * shadow;
 
-        // Direct sunlight + Warm bounce in shadows + SSS + Glints
+        // High-Contrast Direct vs Shadow Illumination
         let direct_illum = sand_albedo * sun_color * n_dot_l * shadow;
-        let ambient_illum = warm_bounce + sky_ambient * (0.3 + 0.7 * shadow);
+        let ambient_illum = (warm_bounce + sky_ambient) * (1.0 - shadow * 0.6);
 
         let surface_radiance = direct_illum + ambient_illum + sss_glow + vec3<f32>(1.0, 0.95, 0.85) * glint;
 
-        // Atmospheric Distance Fog / Mineral Dust Haze
-        let dust_fog = 1.0 - exp(-0.005 * t_hit);
-        let haze_color = mix(sky_horizon, vec3<f32>(0.96, 0.72, 0.48), 0.65);
+        // Clear Desert Atmosphere (subtle Rayleigh haze in distance, preserving deep sky)
+        let dust_fog = 1.0 - exp(-0.0015 * t_hit);
+        let haze_color = vec3<f32>(0.75, 0.68, 0.60);
         final_color = mix(surface_radiance, haze_color, dust_fog);
     }
 
-    // ACES Film Tone Mapping
+    // High Contrast S-Curve & ACES Tone Mapping
     let a = 2.51;
     let b = 0.03;
     let c = 2.43;
     let d = 0.59;
     let e = 0.14;
-    final_color = clamp((final_color * (a * final_color + b)) / (final_color * (c * final_color + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
+    var mapped = clamp((final_color * (a * final_color + b)) / (final_color * (c * final_color + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
+
+    // Contrast Enhancement (rich shadows, deep blue sky, soothing golden dunes)
+    mapped = pow(mapped, vec3<f32>(1.18));
+    mapped = smoothstep(vec3<f32>(0.015), vec3<f32>(0.985), mapped);
 
     // Gamma 2.2 Correction
-    final_color = pow(final_color, vec3<f32>(1.0 / 2.2));
+    final_color = pow(mapped, vec3<f32>(1.0 / 2.2));
 
     let pixel_idx = global_id.x + global_id.y * dune_params.screen_width;
     let r_u = u32(clamp(final_color.r * 255.0, 0.0, 255.0));
