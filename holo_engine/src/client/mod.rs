@@ -7,3 +7,4 @@ pub mod terrain_material;
 pub mod astrophysics;
 pub mod advanced_climate;
 pub mod advanced_scenes;
+pub mod bevy_pipeline;

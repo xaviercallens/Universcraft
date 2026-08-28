@@ -1,61 +1,74 @@
-#import bevy_pbr::forward_io::VertexOutput
-#import bevy_pbr::mesh_view_bindings::globals
-#import bevy_pbr::mesh_view_bindings::view
-
-struct TerrainUniforms {
-    view_proj: mat4x4<f32>,
-    camera_pos: vec3<f32>,
-    sun_dir: vec3<f32>,
-    sun_color: vec3<f32>,
-    ambient_light: vec3<f32>,
+#import bevy_pbr::{
+    pbr_fragment::pbr_input_from_standard_material,
+    pbr_functions::alpha_discard,
+    mesh_vertex_output::MeshVertexOutput,
 }
 
-@group(2) @binding(0) var<uniform> uniforms: TerrainUniforms;
+@group(2) @binding(0) var sand_color_tex: texture_2d<f32>;
+@group(2) @binding(1) var sand_samp: sampler;
+@group(2) @binding(2) var sand_normal_tex: texture_2d<f32>;
+@group(2) @binding(3) var sand_normal_samp: sampler;
+@group(2) @binding(4) var sand_rough_tex: texture_2d<f32>;
+@group(2) @binding(5) var sand_rough_samp: sampler;
 
-// Triplanar Blending Weights from Surface Normal
-fn triplanar_weights(normal: vec3<f32>) -> vec3<f32> {
-    let abs_n = abs(normal);
-    let pow_n = pow(abs_n, vec3<f32>(4.0));
-    return pow_n / (pow_n.x + pow_n.y + pow_n.z + 0.0001);
+@group(2) @binding(6) var moss_color_tex: texture_2d<f32>;
+@group(2) @binding(7) var moss_samp: sampler;
+@group(2) @binding(8) var moss_normal_tex: texture_2d<f32>;
+@group(2) @binding(9) var moss_normal_samp: sampler;
+@group(2) @binding(10) var moss_rough_tex: texture_2d<f32>;
+@group(2) @binding(11) var moss_rough_samp: sampler;
+
+@group(2) @binding(12) var<uniform> blend_sharpness: f32;
+@group(2) @binding(13) var<uniform> texture_scale: f32;
+
+fn sample_triplanar(tex: texture_2d<f32>, samp: sampler, pos: vec3<f32>, normal: vec3<f32>, scale: f32) -> vec4<f32> {
+    let w = abs(normal);
+    let weights = w / (w.x + w.y + w.z);
+    let cx = textureSample(tex, samp, pos.yz * scale) * weights.x;
+    let cy = textureSample(tex, samp, pos.xz * scale) * weights.y;
+    let cz = textureSample(tex, samp, pos.xy * scale) * weights.z;
+    return cx + cy + cz;
 }
 
-// ACES Fitted Tonemapping curve
-fn aces_tonemap(color: vec3<f32>) -> vec3<f32> {
-    let a = 2.51;
-    let b = 0.03;
-    let c = 2.43;
-    let d = 0.59;
-    let e = 0.14;
-    return clamp((color * (a * color + b)) / (color * (c * color + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
+fn hash(p: vec2<f32>) -> f32 {
+    let q = vec2<f32>(dot(p, vec2<f32>(127.1, 311.7)), dot(p, vec2<f32>(269.5, 183.3)));
+    return fract(sin(q.x) * 43758.5453);
+}
+
+fn noise(p: vec2<f32>) -> f32 {
+    let i = floor(p);
+    let f = fract(p);
+    let u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i + vec2<f32>(0.0,0.0)), hash(i + vec2<f32>(1.0,0.0)), u.x),
+               mix(hash(i + vec2<f32>(0.0,1.0)), hash(i + vec2<f32>(1.0,1.0)), u.x), u.y);
 }
 
 @fragment
-fn fragment(mesh: VertexOutput) -> @location(0) vec4<f32> {
-    let normal = normalize(mesh.world_normal);
-    let weights = triplanar_weights(normal);
-
-    // Read CPU-generated biome color from vertex attributes (COLOR)
-    let base_color = mesh.color.rgb;
-
-    // Rock Cliff Face Blend (Slope >= 0.65)
-    let slope = 1.0 - abs(normal.y);
-    let rock_color = vec3<f32>(0.42, 0.44, 0.48);
-    let rock_blend = smoothstep(0.45, 0.65, slope);
-    let blended_albedo = mix(base_color, rock_color, rock_blend);
-
-    // Lighting (Directional Sun + Ambient Occlusion)
-    let NdotL = max(dot(normal, uniforms.sun_dir), 0.15);
+fn fragment(
+    mesh: MeshVertexOutput,
+    @builtin(front_facing) is_front: bool,
+) -> @location(0) vec4<f32> {
+    let world_pos = mesh.world_position.xyz;
+    let world_normal = normalize(mesh.world_normal);
     
-    // Simple height-based AO
-    let height = mesh.world_position.y;
-    let ao = clamp(0.7 + height * 0.05 - slope * 0.25, 0.35, 1.0);
+    let n = noise(world_pos.xz * 0.2) * 2.0 - 1.0;
+    let threshold = world_pos.x * 0.05 + n * blend_sharpness;
+    let biome_blend = smoothstep(-0.5, 0.5, threshold);
     
-    let diffuse = blended_albedo * uniforms.sun_color * NdotL * ao;
-    let ambient = blended_albedo * uniforms.ambient_light * ao;
-    let linear_color = diffuse + ambient;
-
-    // ACES Tonemapping for Cinematic Contrast
-    let final_rgb = aces_tonemap(linear_color);
-
-    return vec4<f32>(final_rgb, 1.0);
+    let s_color = sample_triplanar(sand_color_tex, sand_samp, world_pos, world_normal, texture_scale);
+    let m_color = sample_triplanar(moss_color_tex, moss_samp, world_pos, world_normal, texture_scale * 2.0);
+    let base_color = mix(s_color, m_color, biome_blend);
+    
+    let s_rough = sample_triplanar(sand_rough_tex, sand_rough_samp, world_pos, world_normal, texture_scale);
+    let m_rough = sample_triplanar(moss_rough_tex, moss_rough_samp, world_pos, world_normal, texture_scale * 2.0);
+    let roughness = mix(s_rough, m_rough, biome_blend).r;
+    
+    var pbr_input = pbr_input_from_standard_material(mesh, is_front);
+    pbr_input.material.base_color = base_color;
+    pbr_input.material.perceptual_roughness = roughness;
+    pbr_input.material.metallic = 0.0;
+    pbr_input.material.reflectance = 0.2;
+    
+    // In Bevy 0.14 apply_pbr_lighting handles everything
+    return bevy_pbr::pbr_functions::apply_pbr_lighting(pbr_input);
 }
