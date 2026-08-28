@@ -1,0 +1,12 @@
+{
+  "system": "Barchan Dune Aeolian Transport PDE",
+  "governing_pde": "\u2202h/\u2202t = -\u2207\u00b7q_sand + Avalanche(\u2207h > tan(\u03b8_repose))",
+  "angle_of_repose_degrees": 34.0,
+  "angle_of_repose_radians": 0.5934,
+  "wind_vector_m_s": [
+    8.0,
+    0.0
+  ],
+  "sand_flux_constant": 0.15,
+  "lipschitz_constant_bound": 0.6745
+}

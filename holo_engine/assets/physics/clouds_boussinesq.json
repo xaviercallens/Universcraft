@@ -1,0 +1,7 @@
+{
+  "system": "Boussinesq Atmospheric Convective Vorticity",
+  "condensation_humidity_threshold": 0.65,
+  "thermal_buoyancy_coefficient": 1.5,
+  "vorticity_confinement_factor": 0.8,
+  "standard_lapse_rate_K_per_km": 6.5
+}

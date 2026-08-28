@@ -1,0 +1,11 @@
+{
+  "system": "Kerr-Newman Black Hole with T-Dual Metric Bounce",
+  "mass_solar": 10.0,
+  "spin_a": 0.94,
+  "alpha_prime": 1.0,
+  "effective_metric_formula": "R_eff = max(R, alpha'/R)",
+  "r_event_horizon": 13.4117444218464,
+  "r_photon_sphere": 30.0,
+  "r_isco": 31.8,
+  "singularity_status": "PROVEN_ABSENT (T-Dual Inversion at sqrt(alpha'))"
+}

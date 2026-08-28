@@ -10,10 +10,16 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WorldPreset {
-    OrganicAlienWorld,   // Continuous 1-Lipschitz DONN terrain with 12 peaks
-    QuantumFluidOcean,   // SPH Particles cascading with Leray solenoidal bounds
-    TDualSingularity,    // Scale-invariant T-Duality LOD quantum bounce world
-    CyberneticMesh,      // High Betti numbers TDA mesh network
+    OrganicAlienWorld,      // Continuous 1-Lipschitz DONN terrain with 12 peaks
+    QuantumFluidOcean,      // SPH Particles cascading with Leray solenoidal bounds
+    TDualSingularity,       // Scale-invariant T-Duality LOD quantum bounce world
+    CyberneticMesh,         // High Betti numbers TDA mesh network
+    OceanNavierStokes,      // 2D/3D Multi-frequency Gerstner & Navier-Stokes solenoidal flow
+    DunesAeolian,           // Aeolian sand transport PDE with 1-Lipschitz angle of repose
+    CloudsConvection,       // 3D Thermal buoyancy & turbulent vorticity field
+    GlacierIceSheet,        // Viscoplastic Shallow Ice Approximation (Glen's Flow Law)
+    GalaxySymplecticNBody,  // Yoshida 4th-Order N-Body with DESI 5.66 kpc Dark Matter Core
+    BlackHoleTDual,         // Relativistic spacetime with T-Dual geometric bounce
 }
 
 pub struct TopologicalWorld {
@@ -37,18 +43,34 @@ impl TopologicalWorld {
                 physics_config.lipschitz_limit = 1.0;
                 particle_count = 120;
             }
-            WorldPreset::QuantumFluidOcean => {
+            WorldPreset::QuantumFluidOcean | WorldPreset::OceanNavierStokes => {
                 physics_config.enstrophy_cap = 25.0;
                 physics_config.leray_projection = true;
                 particle_count = 300;
             }
-            WorldPreset::TDualSingularity => {
+            WorldPreset::TDualSingularity | WorldPreset::BlackHoleTDual => {
                 physics_config.alpha_prime = 1.0;
                 particle_count = 80;
             }
             WorldPreset::CyberneticMesh => {
                 physics_config.tda_epsilon = 3.5;
                 particle_count = 200;
+            }
+            WorldPreset::DunesAeolian => {
+                physics_config.lipschitz_limit = 0.7; // ~34 deg repose
+                particle_count = 250;
+            }
+            WorldPreset::CloudsConvection => {
+                physics_config.enstrophy_cap = 15.0;
+                particle_count = 350;
+            }
+            WorldPreset::GlacierIceSheet => {
+                physics_config.lipschitz_limit = 0.5;
+                particle_count = 180;
+            }
+            WorldPreset::GalaxySymplecticNBody => {
+                physics_config.alpha_prime = 1.0;
+                particle_count = 400;
             }
         }
 

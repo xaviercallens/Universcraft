@@ -1,0 +1,31 @@
+{
+  "system": "Incompressible Navier-Stokes with Leray-Hopf Projection",
+  "governing_pde": "\u2202u/\u2202t + (u\u00b7\u2207)u = -\u2207p + \u03bd\u2207\u00b2u, with \u2207\u00b7u = 0",
+  "dispersion_relation": "\u03c9\u00b2 = g\u00b7k\u00b7tanh(k\u00b7h)",
+  "depth_meters": 50.0,
+  "kinematic_viscosity": 1e-06,
+  "enstrophy_cutoff": 50.0,
+  "fno_trained_checkpoint": "scripts/execute_real_pde_navier_stokes_fast.py",
+  "spectrum": [
+    {
+      "freq": 0.5,
+      "amp": 1.2,
+      "dir_deg": 0.0
+    },
+    {
+      "freq": 1.2,
+      "amp": 0.6,
+      "dir_deg": 45.0
+    },
+    {
+      "freq": 2.5,
+      "amp": 0.25,
+      "dir_deg": 90.0
+    },
+    {
+      "freq": 4.0,
+      "amp": 0.08,
+      "dir_deg": 135.0
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "system": "Viscoplastic Ice Sheet Flow (Glen's Law SIA)",
+  "glen_flow_exponent_n": 3.0,
+  "rate_factor_A": 2.4e-24,
+  "ice_density_kg_m3": 917.0,
+  "deformation_flux_formula": "Q_def = (2A / (n+2)) * (\u03c1g|\u2207s|)^n * H^(n+2)"
+}

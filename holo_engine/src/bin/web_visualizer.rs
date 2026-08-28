@@ -70,7 +70,7 @@ async fn handle_generate(
 
     let compute_manager = GPUComputeManager::new(32); // 32 is dummy for 2D passes
 
-    let result = {
+    let result: Result<(wgpu::AdapterInfo, f32, Vec<u32>), String> = {
         println!("Generating scene '{}' at {}x{}", payload.scene, width, height);
         #[cfg(feature = "wgpu")]
         {
