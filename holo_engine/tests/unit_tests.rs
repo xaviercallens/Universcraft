@@ -325,6 +325,49 @@ mod tests {
         assert!(accel_north[1] < 0.0, "Eastward wind in Northern Hemisphere must experience southward Coriolis deflection");
         assert!(accel_north[1].abs() > accel_equator[1].abs(), "Coriolis force must be stronger near poles than at equator");
     }
+
+    #[test]
+    fn test_tnn_physics_registry_load_certified_assets() {
+        use holo_engine::client::bevy_pipeline::tnn_physics_coupling::TnnPhysicsRegistry;
+
+        let registry = TnnPhysicsRegistry::load_from_assets("assets/physics");
+        
+        // 1. Ocean JHTDB
+        let ocean = registry.ocean.expect("Ocean JHTDB params must load");
+        assert_eq!(ocean.gravity_m_s2, 9.81);
+        assert_eq!(ocean.target_b1_vortices, 471);
+
+        // 2. Dunes Exner
+        let dunes = registry.dunes.expect("Dunes Exner params must load");
+        assert_eq!(dunes.repose_angle_deg, 34.0);
+        assert_eq!(dunes.target_b1_loops, 235);
+        assert_eq!(dunes.target_b2_voids, 482);
+
+        // 3. Cryosphere ERA5
+        let cryo = registry.cryosphere.expect("Cryosphere ERA5 params must load");
+        assert_eq!(cryo.glen_exponent_n, 3.0);
+        assert_eq!(cryo.ice_density_kg_m3, 917.0);
+
+        // 4. Astrophysics DESI
+        let astro = registry.astrophysics.expect("Astrophysics DESI params must load");
+        assert_eq!(astro.dark_matter_core_rc_kpc, 5.66);
+        assert_eq!(astro.target_b1_filaments, 1186);
+        assert_eq!(astro.z_score_vs_poisson, 4.56);
+
+        // 5. Black Hole EHT
+        let bh = registry.black_hole.expect("Black Hole EHT params must load");
+        assert!(bh.t_dual_effective_metric);
+        assert_eq!(bh.dimensionless_spin_a, 0.94);
+
+        // 6. Crystallography Magma
+        let crystal = registry.crystallography.expect("Crystallography params must load");
+        assert_eq!(crystal.space_group, "Fd-3m");
+
+        // 7. Ecological Flora GEDI
+        let flora = registry.flora.expect("Flora GEDI params must load");
+        assert_eq!(flora.murray_exponent, 3.0);
+        assert_eq!(flora.target_b0_clusters, 298);
+    }
 }
 
 
