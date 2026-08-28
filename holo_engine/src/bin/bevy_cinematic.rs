@@ -28,6 +28,7 @@ fn main() {
         // Include our new architecture modules
         .add_plugins(GpuInstancingPlugin)
         .add_plugins(MarchingCubesPlugin)
+        .add_plugins(holo_engine::client::bevy_pipeline::fluid_ssfr::SsfrPlugin)
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
         .add_systems(Startup, setup)
         .add_systems(Update, rotate_camera)
