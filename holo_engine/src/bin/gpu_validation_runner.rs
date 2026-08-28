@@ -30,24 +30,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("    -> Temps Évaluation CPU : {:.3} ms ({} voxels)", cpu_duration_ms, cpu_voxels.len());
 
     // 3. Hardware WGPU 3D SDF Compute Pass
-    println!("\n[3] Interrogation Hardware WGPU — Passe 1 : Compute Shader 3D SDF...");
+    println!("\n[3] Interrogation Hardware WGPU — Passe 1 : Raymarcher Scène Avancée (Forêt)...");
     #[cfg(feature = "wgpu")]
     {
-        match compute_manager.execute_hardware_gpu_pass((0.0, 0.0, 0.0), 16.0).await {
-            Ok((adapter_info, gpu_duration_ms, gpu_voxels)) => {
+        match compute_manager.execute_advanced_scene_pass(800, 600, "forest_soil").await {
+            Ok((adapter_info, gpu_duration_ms, _gpu_voxels)) => {
                 println!("    -> Nom de l'Adaptateur GPU : {}", adapter_info.name);
                 println!("    -> Vendeur / Device ID    : {:#X} / {:#X}", adapter_info.vendor, adapter_info.device);
                 println!("    -> Backend de Rendu WGPU  : {:?}", adapter_info.backend);
                 println!("    -> Temps Évaluation GPU   : {:.3} ms", gpu_duration_ms);
-
-                let bandwidth_gb_s = (32768.0 * 4.0 / 1e9) / (gpu_duration_ms / 1000.0);
-                println!("    -> Débit Mémoire VRAM     : {:.2} GB/s", bandwidth_gb_s);
-                println!("    -> Invariant T4 Latence (< 1.2 ms Target) : {}", if gpu_duration_ms <= 2.5 { "PASSED ✓" } else { "CHECK" });
-                
-                if !gpu_voxels.is_empty() && !cpu_voxels.is_empty() {
-                    let diff = (gpu_voxels[0] - cpu_voxels[0]).abs();
-                    println!("    -> Écart Isoparamétrique CPU/GPU : {:.6} (Coherence Verified)", diff);
-                }
             }
             Err(e) => {
                 println!("    ⚠️ WGPU Hardware Dispatch Warning: {}", e);
@@ -56,12 +47,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // 4. Hardware WGPU 1080p Raymarching Pass
-    println!("\n[4] Interrogation Hardware WGPU — Passe 2 : Raymarcher Analytique 1080p...");
+    println!("\n[4] Interrogation Hardware WGPU — Passe 2 : Raymarcher Analytique 1080p (Terre Orbit)...");
     #[cfg(feature = "wgpu")]
     {
         let screen_width = 1920u32;
         let screen_height = 1080u32;
-        match compute_manager.execute_hardware_raymarch_pass(screen_width, screen_height).await {
+        match compute_manager.execute_advanced_scene_pass(screen_width, screen_height, "earth_orbit").await {
             Ok((adapter_info, raymarch_duration_ms, pixels)) => {
                 println!("    -> Résolution de Rendu     : {}x{} ({} pixels)", screen_width, screen_height, pixels.len());
                 println!("    -> Backend de Rendu WGPU   : {:?}", adapter_info.backend);
@@ -83,7 +74,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         let bh_width = 1280u32;
         let bh_height = 720u32;
-        match compute_manager.execute_black_hole_raymarch_pass(bh_width, bh_height).await {
+        match compute_manager.execute_advanced_scene_pass(bh_width, bh_height, "black_hole").await {
             Ok((adapter_info, bh_duration_ms, pixels)) => {
                 println!("    -> Résolution Spacetime   : {}x{} ({} pixels)", bh_width, bh_height, pixels.len());
                 println!("    -> Backend de Rendu WGPU   : {:?}", adapter_info.backend);

@@ -145,13 +145,37 @@ fn raymarch_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             return vec2<f32>(d_water, 1.0);
             "#,
             r#"
+            let sun_dir = normalize(vec3<f32>(1.0, 0.2, 1.0)); // low sunset
+            
+            // Sky background
+            let sun_amount = pow(max(dot(ray_dir, sun_dir), 0.0), 128.0);
+            let sun_disk = pow(max(dot(ray_dir, sun_dir), 0.0), 1024.0);
+            let sky = mix(vec3<f32>(0.1, 0.2, 0.4), vec3<f32>(0.8, 0.4, 0.2), clamp(1.0 - ray_dir.y, 0.0, 1.0));
+            let sky_final = sky + vec3<f32>(1.0, 0.6, 0.2) * sun_amount + vec3<f32>(1.0, 0.9, 0.8) * sun_disk;
+            
             if (mat_id == 1.0) {
-                // Water
-                let light_dir = normalize(vec3<f32>(1.0, 0.5, 1.0));
-                let diff = max(dot(normal, light_dir), 0.0);
-                let specular = pow(max(dot(reflect(-light_dir, normal), -ray_dir), 0.0), 32.0);
-                color = vec3<f32>(0.1, 0.3, 0.5) * diff + vec3<f32>(1.0, 0.8, 0.6) * specular;
+                // Water surface
+                let diff = max(dot(normal, sun_dir), 0.0);
+                
+                // GGX approx specular
+                let half_vec = normalize(sun_dir - ray_dir);
+                let ndh = max(dot(normal, half_vec), 0.0);
+                let specular = pow(ndh, 128.0) * 2.0;
+                
+                // Fresnel
+                let f0 = 0.02;
+                let fresnel = f0 + (1.0 - f0) * pow(1.0 - max(dot(normal, -ray_dir), 0.0), 5.0);
+                
+                let water_base = mix(vec3<f32>(0.01, 0.1, 0.2), vec3<f32>(0.0, 0.2, 0.3), diff);
+                let reflected_sky = mix(vec3<f32>(0.1, 0.2, 0.4), vec3<f32>(0.8, 0.4, 0.2), clamp(1.0 - reflect(ray_dir, normal).y, 0.0, 1.0))
+                                    + vec3<f32>(1.0, 0.8, 0.5) * specular;
+                                    
+                color = mix(water_base, reflected_sky, fresnel);
             }
+            
+            // Horizon fog blending
+            let fog_factor = 1.0 - exp(-0.01 * t);
+            color = mix(color, sky_final, fog_factor);
             "#
         ),
         "forest_soil" => (
@@ -183,27 +207,38 @@ fn raymarch_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             return vec2<f32>(d_tree, 4.0);
             "#,
             r#"
-            let light_dir = normalize(vec3<f32>(0.8, 0.6, 0.3)); // Golden hour
-            let diff = max(dot(normal, light_dir), 0.0);
-            let ao = clamp(0.3 + 0.7 * normal.y, 0.0, 1.0);
+            let sun_dir = normalize(vec3<f32>(0.8, 0.6, 0.3)); // Golden hour
+            let diff = max(dot(normal, sun_dir), 0.0);
+            
+            // Expensive lighting only if we actually hit something (not sky)
+            var ao = 1.0;
+            var shadow = 1.0;
+            if (t < ray_params.max_dist) {
+                ao = calc_ao(hit_pos, normal);
+                shadow = calc_softshadow(hit_pos + normal * 0.05, sun_dir, 0.1, 20.0, 4.0);
+            }
             
             if (mat_id == 2.0) { 
-                let base_color = mix(vec3<f32>(0.1, 0.08, 0.05), vec3<f32>(0.25, 0.2, 0.1), fbm3(hit_pos));
-                color = base_color * (diff * 0.8 + 0.2) * ao; 
+                let base_color = mix(vec3<f32>(0.1, 0.08, 0.05), vec3<f32>(0.25, 0.2, 0.1), fbm3(hit_pos * 2.0));
+                color = base_color * (diff * shadow * 0.8 + 0.2) * ao; 
             }
             else if (mat_id == 3.0) { 
-                color = vec3<f32>(0.2, 0.1, 0.05) * (diff * 0.8 + 0.2) * ao; 
+                let bark = mix(vec3<f32>(0.1, 0.05, 0.02), vec3<f32>(0.2, 0.1, 0.05), fbm3(hit_pos * 5.0));
+                color = bark * (diff * shadow * 0.8 + 0.2) * ao; 
             }
             else if (mat_id == 4.0) { 
                 // Subsurface scattering
-                let sss = pow(max(dot(ray_dir, -light_dir), 0.0), 6.0) * 0.8;
-                let leaf_col = mix(vec3<f32>(0.05, 0.2, 0.05), vec3<f32>(0.3, 0.5, 0.1), fbm3(hit_pos*3.0));
-                color = leaf_col * (diff * 0.6 + 0.4) * ao + vec3<f32>(0.5, 0.8, 0.2) * sss; 
+                let sss = pow(max(dot(ray_dir, sun_dir), 0.0), 6.0) * 0.4;
+                let leaf_col = mix(vec3<f32>(0.05, 0.2, 0.05), vec3<f32>(0.3, 0.6, 0.1), fbm3(hit_pos * 3.0));
+                color = (leaf_col * (diff * shadow * 0.6 + 0.4) + vec3<f32>(0.6, 0.9, 0.2) * sss) * ao; 
             }
             
-            // Atmospheric God Rays (fake volumetric)
-            let sun_amount = pow(max(dot(ray_dir, light_dir), 0.0), 8.0);
-            let fog_color = mix(vec3<f32>(0.5, 0.6, 0.7), vec3<f32>(1.0, 0.9, 0.6), sun_amount);
+            // Atmospheric God Rays (volumetric approx)
+            let sun_amount = pow(max(dot(ray_dir, sun_dir), 0.0), 16.0);
+            let sun_disk = pow(max(dot(ray_dir, sun_dir), 0.0), 512.0);
+            let sky_base = mix(vec3<f32>(0.4, 0.6, 0.8), vec3<f32>(0.1, 0.3, 0.6), clamp(ray_dir.y, 0.0, 1.0));
+            
+            let fog_color = sky_base + vec3<f32>(1.0, 0.8, 0.5) * sun_amount * 0.8 + vec3<f32>(1.0, 1.0, 1.0) * sun_disk;
             let fog_factor = 1.0 - exp(-0.015 * t);
             color = mix(color, fog_color, fog_factor);
             "#
@@ -336,14 +371,20 @@ fn raymarch_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             return vec2<f32>(dune + ripples, 9.0);
             "#,
             r#"
+            let sun_dir = normalize(vec3<f32>(0.9, 0.2, 0.3)); // Golden hour grazing sun
+            
+            var shadow = 1.0;
+            if (t < ray_params.max_dist) {
+                shadow = calc_softshadow(hit_pos + normal * 0.05, sun_dir, 0.1, 30.0, 6.0);
+            }
+
             if (mat_id == 9.0) {
-                let sun_dir = normalize(vec3<f32>(0.9, 0.2, 0.3)); // Golden hour grazing sun
                 let sky_dir = normalize(vec3<f32>(-0.5, 0.9, -0.5));
                 
                 let sun_diff = max(dot(normal, sun_dir), 0.0);
                 let sky_diff = max(dot(normal, sky_dir), 0.0) * 0.4;
                 
-                let sun_col = vec3<f32>(1.0, 0.6, 0.2);
+                let sun_col = vec3<f32>(1.0, 0.6, 0.2) * shadow;
                 let sky_col = vec3<f32>(0.2, 0.4, 0.8); // Ambient blue fill
                 
                 let sand_albedo = vec3<f32>(0.9, 0.7, 0.4);
@@ -352,7 +393,12 @@ fn raymarch_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             }
             
             // Heat haze / Horizon dust
-            let sky_bg = mix(vec3<f32>(0.8, 0.5, 0.3), vec3<f32>(0.2, 0.4, 0.8), clamp(ray_dir.y * 5.0, 0.0, 1.0));
+            let sun_disk = pow(max(dot(ray_dir, sun_dir), 0.0), 512.0) * 2.0;
+            let sun_glow = pow(max(dot(ray_dir, sun_dir), 0.0), 32.0) * 0.5;
+            let sky_bg = mix(vec3<f32>(0.8, 0.5, 0.3), vec3<f32>(0.2, 0.4, 0.8), clamp(ray_dir.y * 5.0, 0.0, 1.0)) 
+                         + vec3<f32>(1.0, 0.8, 0.4) * sun_glow 
+                         + vec3<f32>(1.0, 1.0, 1.0) * sun_disk;
+                         
             let fog = 1.0 - exp(-0.01 * t);
             color = mix(color, sky_bg, fog);
             "#
@@ -565,11 +611,26 @@ fn raymarch_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             let phase = max(dot(ray_dir, sun_dir), 0.0);
             color += atm_color * (phase * 0.8 + 0.2);
             
-            // Background Starfield (if we missed the earth)
+            // Cinematic Background (Sun & Milky Way Starfield)
             if (!hit) {
-                let star_hash = hash31(ray_dir * 500.0);
-                let star = step(0.999, star_hash) * (star_hash - 0.999) * 1000.0;
-                color += vec3<f32>(star);
+                // Milky Way Dust
+                let mw_noise = fbm3(ray_dir * 15.0);
+                let mw_glow = smoothstep(0.3, 0.7, mw_noise);
+                let mw_color = mix(vec3<f32>(0.05, 0.02, 0.08), vec3<f32>(0.1, 0.2, 0.4), ray_dir.y * 0.5 + 0.5);
+                color += mw_color * mw_glow * 0.5;
+                
+                // Procedural Stars
+                let star_hash = hash31(ray_dir * 800.0);
+                let star = step(0.998, star_hash) * pow((star_hash - 0.998) * 500.0, 2.0);
+                // Twinkle
+                let twinkle = sin(ray_params.camera_pos.x * 0.01 + star_hash * 100.0) * 0.5 + 0.5;
+                color += vec3<f32>(star * twinkle);
+                
+                // Cinematic Sun Flare
+                let sun_amount = pow(max(dot(ray_dir, sun_dir), 0.0), 200.0);
+                let sun_core = pow(max(dot(ray_dir, sun_dir), 0.0), 2000.0);
+                color += vec3<f32>(1.0, 0.8, 0.5) * sun_amount * 1.5;
+                color += vec3<f32>(1.0, 1.0, 1.0) * sun_core * 5.0;
             }
             "#
         ),
@@ -778,7 +839,7 @@ fn fbm3(p: vec3<f32>) -> f32 {{
     var f = 0.0;
     var scale = 0.5;
     var q = p;
-    for (var i = 0; i < 3; i++) {{ // Reduced to 3 for performance
+    for (var i = 0; i < 3; i++) {{
         f += scale * noise3(q);
         q *= 2.0;
         scale *= 0.5;
@@ -796,6 +857,41 @@ fn calc_normal(p: vec3<f32>) -> vec3<f32> {{
     let dy = evaluate_scene(p + vec3<f32>(0.0, e, 0.0)).x - evaluate_scene(p - vec3<f32>(0.0, e, 0.0)).x;
     let dz = evaluate_scene(p + vec3<f32>(0.0, 0.0, e)).x - evaluate_scene(p - vec3<f32>(0.0, 0.0, e)).x;
     return normalize(vec3<f32>(dx, dy, dz));
+}}
+
+fn calc_softshadow(ro: vec3<f32>, rd: vec3<f32>, mint: f32, maxt: f32, k: f32) -> f32 {{
+    var res: f32 = 1.0;
+    var t: f32 = mint;
+    for(var i: i32 = 0; i < 16; i++) {{
+        if(t > maxt) {{ break; }}
+        let h = evaluate_scene(ro + rd * t).x;
+        if(h < 0.001) {{ return 0.0; }}
+        res = min(res, k * h / t);
+        t += clamp(h, 0.02, 0.20);
+    }}
+    return clamp(res, 0.0, 1.0);
+}}
+
+fn calc_ao(pos: vec3<f32>, nor: vec3<f32>) -> f32 {{
+    var occ: f32 = 0.0;
+    var sca: f32 = 1.0;
+    for(var i: i32 = 0; i < 5; i++) {{
+        let h = 0.01 + 0.12 * f32(i) / 4.0;
+        let d = evaluate_scene(pos + h * nor).x;
+        occ += (h - d) * sca;
+        sca *= 0.95;
+        if(occ > 0.35) {{ break; }}
+    }}
+    return clamp(1.0 - 3.0 * occ, 0.0, 1.0) * (0.5 + 0.5 * nor.y);
+}}
+
+fn aces_film(x: vec3<f32>) -> vec3<f32> {{
+    let a = 2.51f;
+    let b = 0.03f;
+    let c = 2.43f;
+    let d = 0.59f;
+    let e = 0.14f;
+    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
 }}
 
 @compute @workgroup_size(16, 16)
@@ -850,6 +946,10 @@ fn raymarch_main(@builtin(global_invocation_id) global_id: vec3<u32>) {{
     }}
     
     {} // Insert color_logic
+    
+    // Apply ACES cinematic tonemapping and Gamma correction (sRGB)
+    color = aces_film(color);
+    color = pow(color, vec3<f32>(1.0 / 2.2));
 
     let r = u32(clamp(color.r * 255.0, 0.0, 255.0));
     let g = u32(clamp(color.g * 255.0, 0.0, 255.0));
