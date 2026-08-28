@@ -3218,6 +3218,7 @@ dependencies = [
  "petgraph 0.8.3",
  "pollster",
  "rand 0.8.8",
+ "rand_distr 0.4.3",
  "rayon",
  "salva3d",
  "serde",

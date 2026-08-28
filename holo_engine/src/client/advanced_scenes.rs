@@ -636,7 +636,6 @@ fn raymarch_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         ),
         "continental_biomes" => (
             r#"
-            r#"
             // Cinematic 2: Continental Biomes (Dunes to Rainforest)
             
             // 1. Organic Ecotones (Biome Blending)
