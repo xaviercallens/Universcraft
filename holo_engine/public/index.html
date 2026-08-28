@@ -3,152 +3,203 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HoloEngine 3D - Remote Visualizer</title>
+    <title>HoloEngine 3D — Offline & WebGPU Hub</title>
     <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #121212;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #0b0e14;
             color: #ffffff;
             margin: 0;
             padding: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
+            min-height: 100vh;
         }
         header {
-            background-color: #1e1e1e;
+            background-color: #161b22;
             width: 100%;
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #30363d;
         }
-        h1 {
-            margin: 0;
-            color: #4da6ff;
+        .header-title h1 {
+            font-size: 1.4rem;
+            color: #58a6ff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .badge-offline {
+            background: #238636;
+            color: #ffffff;
+            font-size: 0.75rem;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+        .header-nav {
+            display: flex;
+            gap: 12px;
+        }
+        .nav-btn {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #58a6ff;
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .nav-btn:hover, .nav-btn.active {
+            background: #388bfd;
+            color: #ffffff;
+            border-color: #388bfd;
         }
         .container {
             display: flex;
-            width: 90%;
-            max-width: 1400px;
-            margin-top: 30px;
-            gap: 30px;
+            width: 95%;
+            max-width: 1500px;
+            margin-top: 25px;
+            gap: 25px;
         }
         .controls {
             flex: 1;
-            background-color: #1e1e1e;
+            background-color: #161b22;
             padding: 25px;
             border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            max-width: 350px;
+            border: 1px solid #30363d;
+            max-width: 380px;
+        }
+        .controls h3 {
+            font-size: 1.1rem;
+            color: #e6edf3;
+            margin-bottom: 18px;
+            border-bottom: 1px solid #30363d;
+            padding-bottom: 8px;
         }
         .display {
             flex: 3;
-            background-color: #000;
-            border: 2px solid #333;
+            background-color: #000000;
+            border: 1px solid #30363d;
             border-radius: 8px;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            min-height: 500px;
+            min-height: 560px;
             position: relative;
             overflow: hidden;
         }
         label {
             display: block;
-            margin-bottom: 8px;
-            font-weight: bold;
-            color: #ccc;
+            margin-bottom: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #8b949e;
         }
         select, input, button {
             width: 100%;
             padding: 10px;
-            margin-bottom: 20px;
-            border-radius: 4px;
-            border: 1px solid #444;
-            background-color: #2a2a2a;
-            color: #fff;
+            margin-bottom: 16px;
+            border-radius: 6px;
+            border: 1px solid #30363d;
+            background-color: #0d1117;
+            color: #c9d1d9;
             box-sizing: border-box;
+            outline: none;
         }
         button {
-            background-color: #4da6ff;
-            color: #121212;
+            background-color: #238636;
+            color: #ffffff;
             font-weight: bold;
-            font-size: 16px;
             cursor: pointer;
-            transition: background-color 0.2s;
             border: none;
+            transition: background-color 0.2s;
         }
-        button:hover {
-            background-color: #3388dd;
-        }
-        button:disabled {
-            background-color: #555;
-            color: #888;
-            cursor: not-allowed;
-        }
-        img#render-output {
+        button:hover { background-color: #2ea043; }
+        button:disabled { background-color: #21262d; color: #8b949e; cursor: not-allowed; }
+        #render-output {
             max-width: 100%;
-            max-height: 80vh;
+            max-height: 100%;
             object-fit: contain;
             display: none;
         }
         .loader {
             display: none;
-            border: 5px solid #333;
-            border-top: 5px solid #4da6ff;
+            border: 5px solid #21262d;
+            border-top: 5px solid #58a6ff;
             border-radius: 50%;
-            width: 50px;
-            height: 50px;
+            width: 48px;
+            height: 48px;
             animation: spin 1s linear infinite;
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         #status-bar {
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #1e1e1e;
-            border-radius: 8px;
-            width: 90%;
-            max-width: 1400px;
+            width: 95%;
+            max-width: 1500px;
+            margin-top: 15px;
+            margin-bottom: 25px;
+            padding: 12px 18px;
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
             font-family: monospace;
-            color: #a0d468;
+            font-size: 0.85rem;
+            color: #7ee787;
         }
-        .error {
-            color: #ff5555 !important;
+        #status-bar.error { color: #f85149; }
+        .mode-banner {
+            background: #1f242c;
+            border: 1px solid #388bfd;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 20px;
+            font-size: 0.85rem;
+            color: #c9d1d9;
         }
+        .mode-banner strong { color: #58a6ff; }
     </style>
 </head>
 <body>
     <header>
-        <h1>HoloEngine 3D — Remote T4 GPU Render Node</h1>
-        <p>Offline Analytical Raymarching & Relativistic Spacetime Engine</p>
+        <div class="header-title">
+            <h1>🌌 HoloEngine 3D <span class="badge-offline">OFFLINE STANDALONE</span></h1>
+        </div>
+        <div class="header-nav">
+            <a href="webgpu_live.html" class="nav-btn" style="background:#238636; color:#fff; border-color:#238636;">🚀 Live WebGPU (60 FPS)</a>
+            <a href="gallery.html" class="nav-btn">🖼️ 4x5 Gallery</a>
+            <a href="index.html" class="nav-btn active">📡 Render Node</a>
+        </div>
     </header>
 
     <div class="container">
         <div class="controls">
-            <h3>Render Parameters</h3>
+            <div class="mode-banner">
+                <strong>Offline Ready:</strong> Client-side real-time rendering via WebGPU or local high-res render node.
+            </div>
+
+            <h3>Render Node Parameters</h3>
             <form id="render-form">
-                <label for="scene">Target Scene</label>
+                <label for="scene">Target Scene & Physical Biome</label>
                 <select id="scene" name="scene">
-                    <option value="ocean_sunset">Phase 1: Simulateur Eau (Ocean Sunset)</option>
-                    <option value="forest_soil">Phase 2: Simulateur Sol & Arbres (Forest)</option>
-                    <option value="cloudscape">Phase 3: Simulateur Nuages (Cloudscape)</option>
-                    <option value="crystal_cave">Phase 4: Grotte Cristalline (Crystal Cave)</option>
-                    <option value="floating_islands">Phase 5: Îles Flottantes (Floating Islands)</option>
-                    <option value="desert_dunes">Phase 6: Dunes du Désert (Desert Dunes)</option>
-                    <option value="ice_glacier">Phase 7: Glacier Glacé (Ice Glacier)</option>
-                    <option value="volcano_core">Phase 8: Coeur du Volcan (Volcano Core)</option>
-                    <option value="alien_planet">Phase 9: Planète Extraterrestre (Alien Flora)</option>
-                    <option value="deep_space">Phase 10: Nébuleuse (Deep Space Nebula)</option>
-                    <option value="black_hole">Phase 11: Kerr Black Hole Relativistic Spacetime</option>
-                    <option value="earth_orbit" style="font-weight:bold; color:#00f2fe;">🌐 Cinematic 1: Planète Bleue (Earth Orbit)</option>
-                    <option value="continental_biomes" style="font-weight:bold; color:#00ff87;">🏜️ Cinematic 2: Équateur Sauvage (Biomes)</option>
-                    <option value="arctic_aurora" style="font-weight:bold; color:#e100ff;">🧊 Cinematic 3: Pôle Boréal (Arctic Aurora)</option>
-                    <option value="volcanic_crystal_cave" style="font-weight:bold; color:#ff3300;">🌋 Cinematic 4: Cœur Terrestre (Volcanic Cave)</option>
-                    <option value="floating_archipelago" style="font-weight:bold; color:#ffcc00;">☁️ Cinematic 5: Archipel Suspendu (Archipelago)</option>
+                    <option value="black_hole" selected>🕳️ Kerr Black Hole Relativistic Spacetime</option>
+                    <option value="ocean_sunset">🌊 Phase 1: Ocean Navier-Stokes Fluid</option>
+                    <option value="forest_soil">🌲 Phase 2: Forest & L-System Flora</option>
+                    <option value="cloudscape">☁️ Phase 3: Atmospheric Cloudscape</option>
+                    <option value="desert_dunes">🏜️ Phase 6: Aeolian Desert Dunes</option>
+                    <option value="ice_glacier">🏔️ Phase 7: Viscoplastic Ice Glacier</option>
+                    <option value="earth_orbit">🌐 Cinematic 1: Earth Orbit (Blue Planet)</option>
+                    <option value="continental_biomes">🏜️ Cinematic 2: Continental Biomes (Triplanar)</option>
+                    <option value="arctic_aurora">🧊 Cinematic 3: Arctic Aurora (Cryosphere)</option>
+                    <option value="volcanic_crystal_cave">🌋 Cinematic 4: Volcanic Crystal Cave</option>
+                    <option value="floating_archipelago">☁️ Cinematic 5: Floating Archipelago</option>
+                    <option value="deep_space">🌌 Phase 10: Deep Space Galaxy Filament</option>
                 </select>
 
                 <label for="resolution">Resolution Target</label>
@@ -160,9 +211,10 @@
                 </select>
 
                 <button type="submit" id="generate-btn">Execute GPU Generation</button>
-                <button type="button" id="flip-btn" style="background-color: #555; margin-top: 10px;">Flip Vertical (Up/Down)</button>
+                <button type="button" id="flip-btn" style="background-color: #21262d; border: 1px solid #30363d;">Flip Vertical</button>
             </form>
         </div>
+
         <div class="display">
             <div class="loader" id="loader"></div>
             <img id="render-output" alt="Generated Scene" />
@@ -170,7 +222,7 @@
     </div>
 
     <div id="status-bar">
-        System Ready. Select parameters and execute generation...
+        System Ready (Offline Mode). Select parameters and execute GPU generation or launch Live WebGPU...
     </div>
 
     <script>
@@ -189,18 +241,16 @@
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
             const scene = document.getElementById('scene').value;
             const resVal = document.getElementById('resolution').value.split('x');
             const width = parseInt(resVal[0]);
             const height = parseInt(resVal[1]);
 
-            // UI Update
             btn.disabled = true;
             output.style.display = 'none';
             loader.style.display = 'block';
             statusBar.className = '';
-            statusBar.innerText = `Dispatching WGPU compute task for ${scene} at ${width}x${height}...`;
+            statusBar.innerText = `Dispatching local WGPU task for ${scene} at ${width}x${height}...`;
 
             try {
                 const response = await fetch('/api/generate', {
@@ -214,14 +264,13 @@
                 });
 
                 const data = await response.json();
-
                 if (data.success) {
                     output.src = data.image_url;
                     output.onload = () => {
                         loader.style.display = 'none';
                         output.style.display = 'block';
                     };
-                    statusBar.innerText = `[SUCCESS] ${data.message} | VRAM Readback Latency: ${data.render_time_ms.toFixed(2)} ms`;
+                    statusBar.innerText = `[SUCCESS] ${data.message} | VRAM Latency: ${data.render_time_ms.toFixed(2)} ms`;
                 } else {
                     loader.style.display = 'none';
                     statusBar.className = 'error';
@@ -230,7 +279,7 @@
             } catch (err) {
                 loader.style.display = 'none';
                 statusBar.className = 'error';
-                statusBar.innerText = `[NETWORK ERROR] Could not reach render node: ${err}`;
+                statusBar.innerText = `[OFFLINE FALLBACK] Local server not running. Try launching 'Live WebGPU' directly in your browser!`;
             } finally {
                 btn.disabled = false;
             }
