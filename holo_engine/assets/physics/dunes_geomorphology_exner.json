@@ -1,0 +1,27 @@
+{
+  "domain": "Planetary Geomorphology & Aeolian Dynamics",
+  "target_scenes": [
+    "desert_dunes",
+    "alien_planet"
+  ],
+  "benchmark_datasets": [
+    "USGS 3DEP LiDAR (White Sands)",
+    "NASA HiRISE (Martian Barchan)"
+  ],
+  "neural_operator": "PDE-Constrained PINN (Exner-Sauermann Sand Flux)",
+  "topological_invariants": {
+    "b0_isolated_sand_deposits": 1,
+    "b1_interdune_valley_loops": 235,
+    "b2_dune_crest_voids": 482,
+    "topological_entropy": 4.12
+  },
+  "physical_parameters": {
+    "angle_of_repose_deg": 34.0,
+    "angle_of_repose_rad": 0.5934,
+    "lipschitz_slope_bound": 0.6745,
+    "saltation_flux_constant_Q0": 0.22,
+    "wind_shear_velocity_u_star_m_s": 0.45,
+    "aerodynamic_roughness_z0_m": 0.0015,
+    "exner_equation": "dh/dt = - (1 / (1 - eta)) * div(q_sand)"
+  }
+}

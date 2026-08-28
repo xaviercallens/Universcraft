@@ -605,3 +605,118 @@ impl BlackHoleSpacetime {
         (intensity, color)
     }
 }
+
+// =============================================================================
+// 7. CRYSTALLOGRAPHY & MAGMA BIOME: SE(3) Crystal Facets & Planck Rheology
+// =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CrystallographyMagmaConfig {
+    pub lattice_constant: f32,             // Angstrom (e.g., 3.567 for diamond)
+    pub facet_growth_rate_111: f32,        // Anisotropic Wulff construction rate
+    pub facet_growth_rate_100: f32,
+    pub refractive_index: f32,             // Dielectric constant (e.g., 2.417)
+    pub magma_viscosity_pa_s: f32,         // Lava rheology (Pa.s)
+    pub magma_temperature_k: f32,          // Kelvin (e.g. 1420 K)
+}
+
+impl Default for CrystallographyMagmaConfig {
+    fn default() -> Self {
+        Self {
+            lattice_constant: 3.567,
+            facet_growth_rate_111: 0.45,
+            facet_growth_rate_100: 0.85,
+            refractive_index: 2.417,
+            magma_viscosity_pa_s: 120.0,
+            magma_temperature_k: 1420.0,
+        }
+    }
+}
+
+pub struct CrystallographyMagmaState {
+    pub config: CrystallographyMagmaConfig,
+    pub time: f32,
+}
+
+impl CrystallographyMagmaState {
+    pub fn new(config: CrystallographyMagmaConfig) -> Self {
+        Self { config, time: 0.0 }
+    }
+
+    /// Evaluates SE(3) Crystal facet boundary and anisotropic Wulff shape distance
+    pub fn sample_crystal_facet(&self, p: [f32; 3]) -> f32 {
+        let x = p[0].abs();
+        let y = p[1].abs();
+        let z = p[2].abs();
+        // Octahedral {111} plane vs Cubic {100} plane
+        let d111 = (x + y + z) / 1.73205 - self.config.facet_growth_rate_111 * (1.0 + 0.1 * (self.time * 0.5).sin());
+        let d100 = x.max(y).max(z) - self.config.facet_growth_rate_100;
+        d111.max(d100)
+    }
+
+    /// Planck Blackbody Thermal Emission Spectrum & Magma Crust Viscosity
+    pub fn sample_magma_radiance(&self, p: [f32; 3]) -> ([f32; 3], f32) {
+        let crust_cool = (p[1] * 0.5).clamp(0.0, 1.0);
+        let temp = self.config.magma_temperature_k * (1.0 - 0.4 * crust_cool);
+        
+        // Wien displacement approx radiance
+        let norm_temp = (temp - 800.0).max(0.0) / 700.0;
+        let r = norm_temp.powf(2.0) * 1.5;
+        let g = norm_temp.powf(4.0) * 0.6;
+        let b = norm_temp.powf(8.0) * 0.2;
+
+        let effective_viscosity = self.config.magma_viscosity_pa_s * (1.0 + 10.0 * crust_cool.powi(3));
+        ([r, g, b], effective_viscosity)
+    }
+}
+
+// =============================================================================
+// 8. ECOLOGICAL SELF-ORGANIZATION & FLORA: Turing Reaction-Diffusion & Murray's Law
+// =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EcologicalFloraConfig {
+    pub activator_diffusivity: f32,        // Du (Turing activator)
+    pub inhibitor_diffusivity: f32,        // Dv (Turing inhibitor)
+    pub murray_exponent: f32,              // 3.0 (Hydraulic branch tapering)
+    pub max_canopy_height: f32,            // NASA GEDI max height
+}
+
+impl Default for EcologicalFloraConfig {
+    fn default() -> Self {
+        Self {
+            activator_diffusivity: 1.0e-4,
+            inhibitor_diffusivity: 2.0e-3,
+            murray_exponent: 3.0,
+            max_canopy_height: 35.0,
+        }
+    }
+}
+
+pub struct EcologicalFloraState {
+    pub config: EcologicalFloraConfig,
+    pub time: f32,
+}
+
+impl EcologicalFloraState {
+    pub fn new(config: EcologicalFloraConfig) -> Self {
+        Self { config, time: 0.0 }
+    }
+
+    /// Evaluates Turing Pattern Reaction-Diffusion Vegetation Clustering Density (0.0 .. 1.0)
+    pub fn sample_canopy_density(&self, x: f32, z: f32, moisture: f32) -> f32 {
+        let k1 = 0.45;
+        let k2 = 0.85;
+        let wave1 = (x * k1).sin() * (z * k1).cos();
+        let wave2 = (x * k2 * 0.7 + z * k2 * 0.7).sin();
+        let turing_val = 0.5 + 0.3 * wave1 + 0.2 * wave2;
+        (turing_val * moisture).clamp(0.0, 1.0)
+    }
+
+    /// Murray's Law for Branch Tapering: r_parent^3 = sum(r_children^3)
+    pub fn compute_murray_radius(&self, child_radii: &[f32]) -> f32 {
+        let sum_cubes: f32 = child_radii.iter().map(|&r| r.powf(self.config.murray_exponent)).sum();
+        sum_cubes.powf(1.0 / self.config.murray_exponent)
+    }
+}
+

@@ -1,0 +1,27 @@
+{
+  "domain": "Relativistic Spacetime & Analogue Gravity",
+  "target_scenes": [
+    "black_hole"
+  ],
+  "benchmark_datasets": [
+    "EHT (M87* & Sgr A*)",
+    "Nottingham Analogue Gravity Lab (Weinfurtner)"
+  ],
+  "neural_operator": "Physics-Informed Geodesic Integrator (GRMHD Surrogate)",
+  "topological_invariants": {
+    "b0_singularity_shell": 1,
+    "b1_photon_sphere_null_geodesics": 1,
+    "b2_ergosphere_event_horizon_shell": 1,
+    "lean4_proven_theorem": "Reff_bounce (R_eff = max(R, alpha'/R) >= sqrt(alpha'))"
+  },
+  "physical_parameters": {
+    "black_hole_mass_solar": 10.0,
+    "dimensionless_spin_a_star": 0.94,
+    "alpha_prime": 1.0,
+    "event_horizon_radius_rg": 1.3411744421846397,
+    "photon_sphere_radius_rg": 3.0,
+    "isco_radius_rg": 2.04,
+    "doppler_beaming_exponent": 3.0,
+    "gravitational_redshift_factor": "sqrt(1 - 2M / R_eff)"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "domain": "Solid-State Crystallography & Magma",
+  "target_scenes": [
+    "crystal_cave",
+    "volcano_core",
+    "volcanic_crystal_cave"
+  ],
+  "benchmark_datasets": [
+    "Materials Project (Diamond Fd-3m, Quartz P3_121)",
+    "USGS HVO Lava Rheology"
+  ],
+  "neural_operator": "SE(3)-Equivariant GNN (EGNN) for Crystal Growth + Viscous Magma PINN",
+  "topological_invariants": {
+    "b0_atomic_nucleation_sites": 64,
+    "b1_crystal_dislocation_loops": 12,
+    "space_group": "Fd-3m (Diamond Cubic #227)",
+    "brillouin_zone_points": [
+      "Gamma",
+      "X",
+      "L",
+      "W",
+      "K"
+    ]
+  },
+  "physical_parameters": {
+    "lattice_constant_angstrom": 3.567,
+    "anisotropic_facet_growth_rate_111": 0.45,
+    "anisotropic_facet_growth_rate_100": 0.85,
+    "refractive_index_n": 2.417,
+    "dielectric_fresnel_caustic_strength": 1.8,
+    "magma_viscosity_pa_s": 120.0,
+    "magma_temperature_kelvin": 1420.0,
+    "planck_blackbody_peak_nm": 2040.0
+  }
+}

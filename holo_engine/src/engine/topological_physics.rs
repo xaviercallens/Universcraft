@@ -3,7 +3,8 @@
 /// and streams physical observables to rendering and game loops.
 
 use crate::engine::physical_biomes::{
-    BlackHoleConfig, BlackHoleSpacetime, CloudConfig, CloudField, DuneConfig, DuneGrid,
+    BlackHoleConfig, BlackHoleSpacetime, CloudConfig, CloudField, CrystallographyMagmaConfig,
+    CrystallographyMagmaState, DuneConfig, DuneGrid, EcologicalFloraConfig, EcologicalFloraState,
     GalaxySymplecticSystem, GlacierConfig, GlacierModel, OceanConfig, OceanState,
 };
 use crate::poc2::tda_engine::{BettiNumbers, TdaEngine, SpatialParticle};
@@ -17,6 +18,8 @@ pub enum ActiveBiome {
     Glacier,
     Galaxy,
     BlackHole,
+    Crystallography,
+    EcologicalFlora,
 }
 
 pub struct TopologicalPhysicsSystem {
@@ -27,6 +30,8 @@ pub struct TopologicalPhysicsSystem {
     pub glacier: GlacierModel,
     pub galaxy: GalaxySymplecticSystem,
     pub black_hole: BlackHoleSpacetime,
+    pub crystallography: CrystallographyMagmaState,
+    pub ecological_flora: EcologicalFloraState,
     pub tda: TdaEngine,
     pub step_counter: usize,
     pub current_hamiltonian: f32,
@@ -47,6 +52,8 @@ impl TopologicalPhysicsSystem {
             glacier: GlacierModel::new(64, 1.0, GlacierConfig::default()),
             galaxy,
             black_hole: BlackHoleSpacetime::new(BlackHoleConfig::default()),
+            crystallography: CrystallographyMagmaState::new(CrystallographyMagmaConfig::default()),
+            ecological_flora: EcologicalFloraState::new(EcologicalFloraConfig::default()),
             tda: TdaEngine::new(4.5),
             step_counter: 0,
             current_hamiltonian: init_h,
@@ -78,6 +85,12 @@ impl TopologicalPhysicsSystem {
             }
             ActiveBiome::BlackHole => {
                 // Relativistic spacetime geodesics are analytical
+            }
+            ActiveBiome::Crystallography => {
+                self.crystallography.time += dt;
+            }
+            ActiveBiome::EcologicalFlora => {
+                self.ecological_flora.time += dt;
             }
         }
 
@@ -113,6 +126,18 @@ impl TopologicalPhysicsSystem {
                     });
                 }
             }
+            ActiveBiome::Crystallography => {
+                for i in 0..64 {
+                    let x = ((i % 4) as f32 - 1.5) * 1.5;
+                    let y = (((i / 4) % 4) as f32 - 1.5) * 1.5;
+                    let z = ((i / 16) as f32 - 1.5) * 1.5;
+                    particles.push(SpatialParticle {
+                        position: [x, y, z],
+                        density: 1.0,
+                        cluster_id: i,
+                    });
+                }
+            }
             _ => {
                 // Sample generic probe points
                 for i in 0..50 {
@@ -138,3 +163,4 @@ impl TopologicalPhysicsSystem {
         }
     }
 }
+

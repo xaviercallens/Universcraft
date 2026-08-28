@@ -1,0 +1,55 @@
+{
+  "domain": "Ecological Self-Organization & Flora",
+  "target_scenes": [
+    "forest_soil",
+    "continental_biomes"
+  ],
+  "benchmark_datasets": [
+    "NASA GEDI LiDAR Canopy Height",
+    "Whittaker Biome Climate Matrix"
+  ],
+  "neural_operator": "Neural Cellular Automata (NCA) / Reaction-Diffusion Operator",
+  "topological_invariants": {
+    "b0_canopy_cluster_archipelagoes": 298,
+    "b1_riparian_ecotone_perimeter_rings": 51,
+    "turing_pattern_wavelength_meters": 14.5
+  },
+  "physical_parameters": {
+    "murray_law_hydraulic_exponent": 3.0,
+    "turing_activator_diffusivity_Du": 0.0001,
+    "turing_inhibitor_diffusivity_Dv": 0.002,
+    "canopy_max_height_meters": 35.0,
+    "whittaker_ecotones": [
+      {
+        "biome": "Tundra",
+        "temp_C": -5.0,
+        "precip_cm": 25.0,
+        "density": 0.15
+      },
+      {
+        "biome": "Boreal_Taiga",
+        "temp_C": 2.0,
+        "precip_cm": 75.0,
+        "density": 0.7
+      },
+      {
+        "biome": "Temperate_Forest",
+        "temp_C": 12.0,
+        "precip_cm": 150.0,
+        "density": 0.95
+      },
+      {
+        "biome": "Tropical_Rainforest",
+        "temp_C": 26.0,
+        "precip_cm": 300.0,
+        "density": 1.0
+      },
+      {
+        "biome": "Desert",
+        "temp_C": 28.0,
+        "precip_cm": 15.0,
+        "density": 0.05
+      }
+    ]
+  }
+}
