@@ -1,4 +1,6 @@
 #[cfg(feature = "wgpu")]
+use holo_engine::client::bevy_pipeline::tnn_physics_coupling::TnnPhysicsRegistry;
+#[cfg(feature = "wgpu")]
 use holo_engine::client::gpu_compute::GPUComputeManager;
 use image::{GenericImage, RgbaImage};
 use std::fs;
@@ -9,25 +11,40 @@ async fn main() {
 #[cfg(feature = "wgpu")]
 {
     println!("==========================================================================");
-    println!(" 🌌 HOLOENGINE HIGH-RESOLUTION MULTIVERSE OFFLINE RENDERER (1080p FHD)     ");
+    println!(" 🌌 HOLOENGINE TDA/TNN CERTIFIED HIGH-RESOLUTION OFFLINE RENDERER (1080p) ");
     println!("==========================================================================");
 
+    let physics_reg = TnnPhysicsRegistry::load_from_assets("assets/physics");
+    println!("📊 Loaded Certified TNN/TDA Invariants from assets/physics:");
+    if let Some(ref ocean) = physics_reg.ocean {
+        println!("  🌊 Ocean JHTDB FNO-3D: g={:.2} m/s², ν={:.2e} m²/s, β₁={}", ocean.gravity_m_s2, ocean.kinematic_viscosity_m2_s, ocean.target_b1_vortices);
+    }
+    if let Some(ref dunes) = physics_reg.dunes {
+        println!("  🏜️ Dunes Exner PINN: θ_repose={:.1}°, slope≤{:.4}, β₁={}, β₂={}", dunes.repose_angle_deg, dunes.max_slope_tan, dunes.target_b1_loops, dunes.target_b2_voids);
+    }
+    if let Some(ref astro) = physics_reg.astrophysics {
+        println!("  🌌 Astrophysics DESI SympNet: R_c={:.2} kpc, Stars={}, β₁={}, Z={:+.2}σ", astro.dark_matter_core_rc_kpc, astro.stars_count, astro.target_b1_filaments, astro.z_score_vs_poisson);
+    }
+    if let Some(ref bh) = physics_reg.black_hole {
+        println!("  🕳️ Black Hole EHT T-Dual: M={:.1e} M☉, a={:.2}, ISCO={:.2} Rg, T-Dual Metric={}", bh.mass_solar_masses, bh.dimensionless_spin_a, bh.isco_radius_rg, bh.t_dual_effective_metric);
+    }
+
     let scenes = vec![
-        ("01_ocean_sunset", "ocean_sunset", "🌊 Océan & Fluides (Navier-Stokes)"),
-        ("02_forest_soil", "forest_soil", "🌲 Forêt & Flore L-System (K3 Whittaker)"),
-        ("03_cloudscape", "cloudscape", "☁️ Nuages Volumétriques & Atmosphère (Boussinesq)"),
-        ("04_crystal_cave", "crystal_cave", "💎 Grotte Cristalline & Réfraction PBR"),
-        ("05_floating_islands", "floating_islands", "🏝️ Îles Flottantes (Métrique DONN)"),
-        ("06_desert_dunes", "desert_dunes", "🏜️ Dunes du Désert (Transport Éolien 1-Lipschitz)"),
-        ("07_ice_glacier", "ice_glacier", "🏔️ Glacier & Banquise (Loi de Fluage de Glen)"),
-        ("08_volcano_core", "volcano_core", "🌋 Cœur Magmatique & Émission Thermodynamique"),
-        ("09_alien_planet", "alien_planet", "🪐 Planète Extraterrestre & Ecotones Exotiques"),
-        ("10_deep_space", "deep_space", "🌌 Nébuleuse Cosmique & Filaments DESI"),
-        ("11_black_hole", "black_hole", "🕳️ Trou Noir de Kerr (Rebond T-Dual & Redshift)"),
-        ("12_earth_orbit", "earth_orbit", "🌐 Orbite Terrestre & Atmosphère de Rayleigh-Mie"),
-        ("13_continental_biomes", "continental_biomes", "🌿 Équateur Sauvage (PBR Triplanaire)"),
-        ("14_arctic_aurora", "arctic_aurora", "🧊 Pôle Boréal & Aurore Polaire"),
-        ("15_volcanic_crystal_cave", "volcanic_crystal_cave", "🔥 Cœur Terrestre & Fluides Magmatiques"),
+        ("01_ocean_sunset", "ocean_sunset", "🌊 Océan & Fluides (Navier-Stokes / FNO-3D)"),
+        ("02_forest_soil", "forest_soil", "🌲 Forêt & Flore L-System (K3 Whittaker / Murray Law)"),
+        ("03_cloudscape", "cloudscape", "☁️ Nuages Volumétriques & Atmosphère (Boussinesq / ERA5)"),
+        ("04_crystal_cave", "crystal_cave", "💎 Grotte Cristalline & Réfraction PBR (COD Fd-3m)"),
+        ("05_floating_islands", "floating_islands", "🏝️ Îles Flottantes (Métrique DONN & TDA)"),
+        ("06_desert_dunes", "desert_dunes", "🏜️ Dunes du Désert (Transport Éolien Exner 1-Lipschitz)"),
+        ("07_ice_glacier", "ice_glacier", "🏔️ Glacier & Banquise (Loi de Fluage de Glen n=3)"),
+        ("08_volcano_core", "volcano_core", "🌋 Cœur Magmatique & Émission Thermodynamique (Planck)"),
+        ("09_alien_planet", "alien_planet", "🪐 Planète Extraterrestre & Écotones Exotiques"),
+        ("10_deep_space", "deep_space", "🌌 Nébuleuse Cosmique & Filaments DESI (SympNets)"),
+        ("11_black_hole", "black_hole", "🕳️ Trou Noir de Kerr (Rebond T-Dual Sans Singularité & Redshift)"),
+        ("12_earth_orbit", "earth_orbit", "🌐 Orbite Terrestre & Atmosphère Rayleigh-Mie"),
+        ("13_continental_biomes", "continental_biomes", "🌿 Équateur Sauvage (PBR Triplanaire & Whittaker)"),
+        ("14_arctic_aurora", "arctic_aurora", "🧊 Pôle Boréal & Aurore Polaire (Coriolis / Magneto)"),
+        ("15_volcanic_crystal_cave", "volcanic_crystal_cave", "🔥 Cœur Terrestre & Fluides Magmatiques Visqueux"),
         ("16_floating_archipelago", "floating_archipelago", "☁️ Archipel Suspendu & Convection Aérienne"),
     ];
 
@@ -39,7 +56,7 @@ async fn main() {
     let target_h = 1080;
 
     let total_start = Instant::now();
-    println!("🚀 Starting High-Resolution Render Pass for {} scenes at {}x{}...", scenes.len(), target_w, target_h);
+    println!("\n🚀 Starting High-Resolution Render Pass for {} scenes at {}x{}...", scenes.len(), target_w, target_h);
 
     for (idx, (file_prefix, scene_id, label)) in scenes.iter().enumerate() {
         println!("\n[{}/{}] Rendering: {} (Scene ID: '{}')...", idx + 1, scenes.len(), label, scene_id);
