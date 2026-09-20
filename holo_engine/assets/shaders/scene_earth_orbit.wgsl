@@ -72,33 +72,42 @@ fn evaluate_boussinesq_cloud_density(p: vec3<f32>) -> f32 {
     }
 
     // Direct S^2 unit direction projection
-    var dir = p / r;
+    let base_dir = p / r;
+    var dir = base_dir;
     
-    // Create a massive chaotic topological vortex (Hurricane Eye)
+    // Create a localized topological vortex (Single Hurricane)
     let vortex_center = normalize(vec3<f32>(0.2, 0.45, -0.75));
     let dist_to_eye = length(dir - vortex_center);
     
-    // Swirl distortion
-    let swirl_power = smoothstep(0.7, 0.0, dist_to_eye);
-    let tangent = normalize(cross(vortex_center, dir));
-    dir = normalize(dir + tangent * swirl_power * 1.8);
+    // Tightly localized swirl distortion (radius 0.25 max)
+    let swirl_power = smoothstep(0.25, 0.0, dist_to_eye);
+    // Add small epsilon to prevent cross product with self from zeroing out
+    let tangent = normalize(cross(vortex_center, dir + vec3<f32>(0.001, 0.0, 0.0))); 
+    dir = normalize(dir + tangent * swirl_power * 1.2);
     
     // The eye of the hurricane (clear patch)
-    let eye_mask = smoothstep(0.04, 0.15, dist_to_eye);
+    let eye_mask = smoothstep(0.01, 0.05, dist_to_eye);
 
-    // Multi-scale Worley cauliflower clustering + FBM micro-erosion with high freq
-    let macro_clusters = fbm_s2(dir * 5.2);
-    let micro_worley = 1.0 - worley_s2(dir * 18.0 + vec3<f32>(1.5, 0.4, 2.1));
-    var cumulus = smoothstep(0.40, 0.85, macro_clusters * 0.50 + micro_worley * 0.50);
+    // Global weather bands (latitude-based sweeping structures)
+    let weather_band = smoothstep(0.0, 1.0, sin(dir.y * 6.0 + fbm_s2(dir * 1.5) * 2.0) * 0.5 + 0.5);
 
-    // Add chaos and punch out the eye
+    // Smooth, less dense global clouds
+    let macro_clusters = fbm_s2(dir * 2.5);
+    let micro_worley = 1.0 - worley_s2(dir * 9.0 + vec3<f32>(1.5, 0.4, 2.1));
+    
+    // Threshold adjusted for sparser, fluffier distribution
+    var cumulus = smoothstep(0.55, 0.90, macro_clusters * 0.65 + micro_worley * 0.35 * weather_band);
+
+    // Punch out the eye
     cumulus *= eye_mask;
     
-    // Increase cloud thickness around the vortex walls
-    let eye_wall = smoothstep(0.10, 0.25, dist_to_eye) * (1.0 - smoothstep(0.25, 0.60, dist_to_eye));
-    cumulus = min(cumulus + eye_wall * 0.8 * macro_clusters, 1.0);
+    // Dense hurricane eye-wall
+    let eye_wall = smoothstep(0.02, 0.08, dist_to_eye) * (1.0 - smoothstep(0.08, 0.22, dist_to_eye));
+    cumulus = min(cumulus + eye_wall * macro_clusters * 1.2, 1.0);
 
-    return cumulus * alt_envelope * 3.5;
+    // General clouds are less dense (1.2), hurricane is dense (3.5)
+    let final_density = mix(1.2, 3.5, eye_wall);
+    return cumulus * alt_envelope * final_density;
 }
 
 // Solenoidal Ocean Height & Normal on S^2 Surface
