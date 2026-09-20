@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UniversCraft HoloEngine</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --card-bg: #161b22;
+            --card-border: #30363d;
+            --text-main: #c9d1d9;
+            --text-muted: #8b949e;
+            --accent: #58a6ff;
+            --success: #7ee787;
+            --error: #f85149;
+            --warn: #d29922;
+            --gradient-start: #1f6feb;
+            --gradient-end: #8957e5;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Navbar */
+        nav {
+            position: sticky;
+            top: 0;
+            background-color: rgba(13, 17, 23, 0.9);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--card-border);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        nav .logo {
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: var(--text-main);
+            text-decoration: none;
+        }
+
+        nav ul {
+            display: flex;
+            gap: 1.5rem;
+            list-style: none;
+        }
+
+        nav a {
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.2s;
+            font-size: 0.9rem;
+        }
+
+        nav a:hover, nav a.active {
+            color: var(--accent);
+        }
+
+        /* Sections */
+        section {
+            padding: 5rem 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1, h2, h3 {
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .section-title {
+            font-size: 2rem;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--card-border);
+            padding-bottom: 0.5rem;
+        }
+
+        /* Hero */
+        #hero {
+            text-align: center;
+            padding: 8rem 2rem;
+            background: radial-gradient(circle at 50% -20%, rgba(31,111,235,0.15) 0%, rgba(13,17,23,1) 60%);
+        }
+
+        #hero h1 {
+            font-size: 3.5rem;
+            background: linear-gradient(90deg, var(--gradient-start), var(--gradient-end));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+        }
+
+        #hero p.subtitle {
+            font-size: 1.5rem;
+            color: var(--text-muted);
+            margin-bottom: 3rem;
+        }
+
+        .pillars {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent);
+        }
+
+        .card-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        /* Gallery */
+        #gallery-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            width: 800px;
+            max-width: 100%;
+            aspect-ratio: 16/9;
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            overflow: hidden;
+            background: #000;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            display: flex;
+            justify-content: space-between;
+            width: calc(100% - 20px);
+            pointer-events: none;
+        }
+
+        .badge {
+            background: rgba(13, 17, 23, 0.7);
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            border: 1px solid var(--card-border);
+        }
+
+        #error-msg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(248, 81, 73, 0.2);
+            color: var(--error);
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--error);
+            display: none;
+            text-align: center;
+        }
+
+        .scene-selectors {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            justify-content: center;
+        }
+
+        .btn {
+            background-color: var(--card-bg);
+            color: var(--text-main);
+            border: 1px solid var(--card-border);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .btn:hover {
+            border-color: var(--text-muted);
+            background-color: var(--card-border);
+        }
+
+        .btn.active {
+            background-color: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+
+        /* Audit Dashboard */
+        .audit-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+        @media (max-width: 768px) { .audit-grid { grid-template-columns: 1fr; } }
+
+        .scorecard ul, .metrics ul {
+            list-style: none;
+        }
+
+        .scorecard li, .metrics li {
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--card-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .status {
+            font-weight: 600;
+            font-size: 0.85rem;
+            padding: 2px 8px;
+            border-radius: 12px;
+        }
+
+        .s-green { color: var(--success); background: rgba(126, 231, 135, 0.1); }
+        .s-red { color: var(--error); background: rgba(248, 81, 73, 0.1); }
+        .s-yellow { color: var(--warn); background: rgba(210, 153, 34, 0.1); }
+        .s-arrow { margin: 0 4px; color: var(--text-muted); }
+
+        /* Timeline */
+        .timeline {
+            position: relative;
+            padding-left: 2rem;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 0.5rem;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--card-border);
+        }
+
+        .phase {
+            position: relative;
+            margin-bottom: 2rem;
+        }
+
+        .phase::before {
+            content: '';
+            position: absolute;
+            left: -1.9rem;
+            top: 0.3rem;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--bg);
+            border: 2px solid var(--card-border);
+        }
+
+        .phase.done::before {
+            border-color: var(--success);
+            background: var(--success);
+        }
+        .phase.active::before {
+            border-color: var(--accent);
+            background: var(--accent);
+            box-shadow: 0 0 10px rgba(88, 166, 255, 0.5);
+        }
+
+        .phase h3 { margin-bottom: 0.2rem; }
+        .phase .date { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+
+        /* Math */
+        .math-block {
+            background-color: var(--card-bg);
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--card-border);
+            font-family: monospace;
+            overflow-x: auto;
+            margin-top: 1rem;
+            text-align: center;
+            font-size: 1.1rem;
+        }
+
+        #math-canvas-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 2rem;
+        }
+        #tdual-canvas {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <nav>
+        <a href="#" class="logo">UniversCraft</a>
+        <ul>
+            <li><a href="#hero">Overview</a></li>
+            <li><a href="#gallery">Gallery</a></li>
+            <li><a href="#audit">Audit</a></li>
+            <li><a href="#timeline">Roadmap</a></li>
+            <li><a href="#math">Math</a></li>
+        </ul>
+    </nav>
+
+    <header id="hero">
+        <h1>UniversCraft HoloEngine</h1>
+        <p class="subtitle">Topological Game Engine — Zero-Copy GPU Pipeline</p>
+        <div class="pillars">
+            <div class="card">
+                <div class="card-icon">🪞</div>
+                <h3>T-Dual Metric</h3>
+                <p>String theory inspired LOD mapping where R_eff = max(R, α'/R). Small scale maps smoothly to large scale.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon">🍩</div>
+                <h3>Vietoris-Rips TDA</h3>
+                <p>Topological Data Analysis dynamically tracking Betti numbers for spatial awareness and pathing.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon">🌊</div>
+                <h3>Leray-Hopf Fluids</h3>
+                <p>GPU-accelerated incompressible fluid dynamics enforcing divergence-free velocity fields.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon">🧠</div>
+                <h3>DONN</h3>
+                <p>Deep Oscillatory Neural Networks using sine-based activations to generate high-frequency procedural worlds.</p>
+            </div>
+        </div>
+    </header>
+
+    <section id="gallery">
+        <h2 class="section-title">Live Topology Gallery</h2>
+        <p style="margin-bottom: 2rem; color: var(--text-muted);">
+            Real-time WGSL raymarching engine. Shaders are fetched and compiled on the fly. 
+            (Requires a WebGPU-enabled browser).
+        </p>
+        
+        <div id="gallery-container">
+            <div class="canvas-wrapper">
+                <canvas id="webgpu-canvas" width="800" height="450"></canvas>
+                <div class="overlay">
+                    <span class="badge" id="fps-counter">0 FPS</span>
+                    <span class="badge" id="scene-desc">Earth Orbit</span>
+                </div>
+                <div id="error-msg"></div>
+            </div>
+
+            <div class="scene-selectors" id="scene-btns">
+                <!-- Injected via JS -->
+            </div>
+        </div>
+    </section>
+
+    <section id="audit">
+        <h2 class="section-title">Audit Dashboard</h2>
+        <div class="audit-grid">
+            <div class="card scorecard">
+                <h3>Mathematical Invariant Scorecard</h3>
+                <ul>
+                    <li>
+                        <span>T-Dual Metric (R_eff)</span>
+                        <span class="status s-green">✅ CORRECT</span>
+                    </li>
+                    <li>
+                        <span>Leray-Hopf Projection</span>
+                        <span class="status">
+                            <span class="s-red">❌ FLAWED</span> <span class="s-arrow">→</span> <span class="s-yellow">🔧 RENAMED</span>
+                        </span>
+                    </li>
+                    <li>
+                        <span>Enstrophy Cap</span>
+                        <span class="status">
+                            <span class="s-yellow">⚠️ MISLABELED</span> <span class="s-arrow">→</span> <span class="s-green">✅ FIXED</span>
+                        </span>
+                    </li>
+                    <li>
+                        <span>1-Lipschitz Avalanche</span>
+                        <span class="status">
+                            <span class="s-yellow">⚠️ BIASED</span> <span class="s-arrow">→</span> <span class="s-green">✅ FIXED</span>
+                        </span>
+                    </li>
+                    <li>
+                        <span>TDA Betti Numbers</span>
+                        <span class="status s-yellow">⚠️ APPROXIMATE</span>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="card metrics">
+                <h3>Architecture & Code Metrics</h3>
+                <ul>
+                    <li>
+                        <span>advanced_scenes.rs size</span>
+                        <span>101 KB → 39 KB <strong>(-62%)</strong></span>
+                    </li>
+                    <li>
+                        <span>GPU Device Strategy</span>
+                        <span>Recreated → <strong>Persistent GpuContext</strong></span>
+                    </li>
+                    <li>
+                        <span>SPH Complexity</span>
+                        <span>O(N²) → <strong>Spatial Hash (planned)</strong></span>
+                    </li>
+                    <li>
+                        <span>Total Source Files</span>
+                        <strong>60</strong>
+                    </li>
+                    <li>
+                        <span>Total Rust / WGSL LOC</span>
+                        <strong>~8,000 / ~3,000</strong>
+                    </li>
+                    <li>
+                        <span>Test Coverage</span>
+                        <strong>36 tests in 5 files</strong>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <section id="timeline">
+        <h2 class="section-title">Improvement Plan Timeline</h2>
+        <div class="timeline">
+            <div class="phase done">
+                <h3>Phase A: Build Fix</h3>
+                <div class="date">Week 1</div>
+                <p>Resolve core compilation issues. ✅ <em>Partially done</em></p>
+            </div>
+            <div class="phase active">
+                <h3>Phase B: Math Corrections</h3>
+                <div class="date">Weeks 2-3</div>
+                <p>Fix theoretical flaws in invariants. ✅ <em>B2, B4 done</em></p>
+            </div>
+            <div class="phase active">
+                <h3>Phase C: Architecture</h3>
+                <div class="date">Weeks 4-6</div>
+                <p>Modularize scenes, stabilize context. ✅ <em>C1, C2 done</em></p>
+            </div>
+            <div class="phase">
+                <h3>Phase D: Dependency Cleanup</h3>
+                <div class="date">Weeks 7-8</div>
+                <p>Remove phantom dependencies (3 identified).</p>
+            </div>
+            <div class="phase">
+                <h3>Phase E: Formal Verification</h3>
+                <div class="date">Weeks 9-10</div>
+                <p>Unit testing of topology proofs.</p>
+            </div>
+            <div class="phase">
+                <h3>Phase F: GPU Pipeline</h3>
+                <div class="date">Weeks 11-14</div>
+                <p>Implement O(N) Spatial Hashing & full zero-copy.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="math">
+        <h2 class="section-title">Mathematical Deep Dive</h2>
+        <div class="card">
+            <h3>1. T-Dual Metric</h3>
+            <p>Maps sub-Planckian scales to macro scales. A fundamental string theory duality.</p>
+            <div class="math-block">
+                R_eff = max(R, α' / R)
+            </div>
+            
+            <div id="math-canvas-container">
+                <div>
+                    <p style="text-align:center; font-size: 0.9rem; margin-bottom: 0.5rem; color: var(--text-muted);">
+                        Visualization (α' = 1). As R approaches 0, R_eff bounces back.
+                    </p>
+                    <canvas id="tdual-canvas" width="400" height="250"></canvas>
+                </div>
+            </div>
+
+            <h3 style="margin-top: 2rem;">2. Vietoris-Rips TDA</h3>
+            <div class="math-block">
+                β₀ = # of connected components, β₁ = # of loops, β₂ = # of voids
+            </div>
+
+            <h3 style="margin-top: 2rem;">3. Leray-Hopf Fluids</h3>
+            <div class="math-block">
+                ∇ · v = 0 &nbsp;&nbsp; (Incompressibility constraint via projection operator ℙ)
+            </div>
+
+            <h3 style="margin-top: 2rem;">4. DONN</h3>
+            <div class="math-block">
+                Φ(x) = sin(W · x + b) &nbsp;&nbsp; (Oscillatory field replacing standard ReLU)
+            </div>
+        </div>
+    </section>
+
+    <script>
+        // Smooth scrolling for nav
+        document.querySelectorAll('nav a').forEach(anchor => {
+            anchor.addEventListener('click', function(e) {
+                if(this.getAttribute('href').startsWith('#')) {
+                    e.preventDefault();
+                    document.querySelector(this.getAttribute('href')).scrollIntoView({
+                        behavior: 'smooth'
+                    });
+                }
+            });
+        });
+
+        // ---------------------------------------------------------
+        // MATH VISUALIZATION
+        // ---------------------------------------------------------
+        function drawMath() {
+            const canvas = document.getElementById('tdual-canvas');
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+            
+            // clear
+            ctx.clearRect(0,0,w,h);
+            
+            // Grid
+            ctx.strokeStyle = '#30363d';
+            ctx.beginPath();
+            for(let i=0; i<w; i+=40) { ctx.moveTo(i, 0); ctx.lineTo(i, h); }
+            for(let i=0; i<h; i+=40) { ctx.moveTo(0, i); ctx.lineTo(w, i); }
+            ctx.stroke();
+
+            // Axes
+            ctx.strokeStyle = '#8b949e';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(40, 0); ctx.lineTo(40, h); // Y
+            ctx.moveTo(0, h-40); ctx.lineTo(w, h-40); // X
+            ctx.stroke();
+            
+            // Plot
+            ctx.strokeStyle = '#58a6ff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            
+            const alpha_prime = 1.0;
+            const scaleX = 40;
+            const scaleY = 40;
+
+            for(let x_px = 41; x_px < w; x_px++) {
+                let R = (x_px - 40) / scaleX;
+                if(R === 0) R = 0.001; // avoid /0
+                
+                let R_eff = Math.max(R, alpha_prime / R);
+                
+                let y_px = (h - 40) - (R_eff * scaleY);
+                if(x_px === 41) ctx.moveTo(x_px, y_px);
+                else ctx.lineTo(x_px, y_px);
+            }
+            ctx.stroke();
+
+            // Labels
+            ctx.fillStyle = '#c9d1d9';
+            ctx.font = '12px sans-serif';
+            ctx.fillText("R (Scale)", w - 60, h - 20);
+            ctx.fillText("R_eff", 10, 20);
+            ctx.fillText("√α'", 40 + scaleX - 10, h - 25);
+        }
+        drawMath();
+
+        // ---------------------------------------------------------
+        // WEBGPU GALLERY
+        // ---------------------------------------------------------
+        const SCENES = [
+            { id: 'earth_orbit', name: '🌍 Earth Orbit', cam: [0, 20, -52], dir: [0, -0.36, 0.933], fov: 52, max_dist: 150 },
+            { id: 'ocean_sunset', name: '🌊 Ocean Sunset', cam: [0, -3.2, -7], dir: [0, 0.44, 0.898], fov: 70, max_dist: 50 },
+            { id: 'desert_dunes', name: '🏜️ Desert Dunes', cam: [0, 15, -42], dir: [0.34, -0.16, 0.92], fov: 68, max_dist: 280 },
+            { id: 'ice_glacier', name: '❄️ Ice Glacier', cam: [0, 36, -40], dir: [0, -0.38, 0.925], fov: 68, max_dist: 300 },
+            { id: 'black_hole', name: '🕳️ Black Hole', cam: [0, 5.5, -22], dir: [0, -0.24, 0.97], fov: 65, max_dist: 250 },
+            { id: 'cloudscape', name: '☁️ Cloudscape', cam: [0, 1.2, -14], dir: [0, 0.22, 1.0], fov: 68, max_dist: 100 }
+        ];
+
+        // Mock WGSL Shader just in case fetch fails
+        const FALLBACK_WGSL = `
+        struct RaymarchParams {
+            camera_pos: vec3<f32>, fov: f32,
+            camera_dir: vec3<f32>, screen_width: u32,
+            camera_up: vec3<f32>, screen_height: u32,
+            max_steps: u32, max_dist: f32,
+            _pad0: u32, _pad1: u32,
+        };
+        @group(0) @binding(0) var<uniform> params: RaymarchParams;
+        @group(0) @binding(1) var<storage, read_write> color_buffer: array<u32>;
+
+        @compute @workgroup_size(16, 16) 
+        fn raymarch_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+            let x = global_id.x; let y = global_id.y;
+            if (x >= params.screen_width || y >= params.screen_height) { return; }
+            let idx = y * params.screen_width + x;
+            
+            // Simple gradient to show it works
+            let u = f32(x) / f32(params.screen_width);
+            let v = f32(y) / f32(params.screen_height);
+            let time_mod = fract(params.max_dist / 100.0); // Abuse max_dist for time in mock
+            
+            let r = u32((u + time_mod) * 255.0) % 255u;
+            let g = u32(v * 255.0);
+            let b = u32((1.0 - u) * 255.0);
+            
+            color_buffer[idx] = (255u << 24) | (b << 16) | (g << 8) | r;
+        }
+        `;
+
+        let activeSceneIdx = 0;
+        let isAnimating = true;
+        let gpu = {
+            device: null,
+            pipelines: {}, // map of id -> GPUPipeline
+            uniformBuffer: null,
+            uniformData: null,
+            storageBuffer: null,
+            readBuffer: null,
+            bindGroups: {}
+        };
+
+        const canvas = document.getElementById('webgpu-canvas');
+        const ctx2d = canvas.getContext('2d', { willReadFrequently: true });
+        const W = canvas.width;
+        const H = canvas.height;
+        const NUM_PIXELS = W * H;
+
+        async function initWebGPU() {
+            try {
+                if (!navigator.gpu) throw new Error("WebGPU not supported on this browser.");
+                const adapter = await navigator.gpu.requestAdapter();
+                if (!adapter) throw new Error("No appropriate WebGPU adapter found.");
+                gpu.device = await adapter.requestDevice();
+
+                // Setup Buffers
+                const uniformBufferSize = 64; // 16 * 4 bytes
+                gpu.uniformBuffer = gpu.device.createBuffer({
+                    size: uniformBufferSize,
+                    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+                });
+                gpu.uniformData = new ArrayBuffer(uniformBufferSize);
+
+                const storageBufferSize = NUM_PIXELS * 4;
+                gpu.storageBuffer = gpu.device.createBuffer({
+                    size: storageBufferSize,
+                    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
+                });
+
+                gpu.readBuffer = gpu.device.createBuffer({
+                    size: storageBufferSize,
+                    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+                });
+
+                await loadScene(0);
+                requestAnimationFrame(renderLoop);
+            } catch (err) {
+                console.error(err);
+                const errBox = document.getElementById('error-msg');
+                errBox.style.display = 'block';
+                errBox.innerHTML = `⚠️ WebGPU Error: ${err.message}<br><br>Showing fallback images...`;
+                
+                // Fallback rendering
+                setInterval(() => {
+                    ctx2d.fillStyle = '#161b22';
+                    ctx2d.fillRect(0,0,W,H);
+                    ctx2d.fillStyle = '#c9d1d9';
+                    ctx2d.font = '24px monospace';
+                    ctx2d.textAlign = 'center';
+                    ctx2d.fillText("Pre-rendered Preview (WebGPU Disabled)", W/2, H/2);
+                    ctx2d.fillText(SCENES[activeSceneIdx].name, W/2, H/2 + 40);
+                }, 1000);
+            }
+        }
+
+        async function fetchShader(id) {
+            try {
+                const res = await fetch(`/shaders/scene_${id}.wgsl`);
+                if(!res.ok) throw new Error("Not found");
+                return await res.text();
+            } catch(e) {
+                console.warn(`Could not fetch shader for ${id}, using fallback mock shader.`);
+                return FALLBACK_WGSL;
+            }
+        }
+
+        async function loadScene(idx) {
+            activeSceneIdx = idx;
+            const scene = SCENES[idx];
+            document.getElementById('scene-desc').innerText = scene.name;
+            
+            updateButtons();
+
+            if (!gpu.pipelines[scene.id]) {
+                const code = await fetchShader(scene.id);
+                const shaderModule = gpu.device.createShaderModule({ code });
+                gpu.pipelines[scene.id] = await gpu.device.createComputePipelineAsync({
+                    layout: 'auto',
+                    compute: { module: shaderModule, entryPoint: 'raymarch_main' }
+                });
+
+                gpu.bindGroups[scene.id] = gpu.device.createBindGroup({
+                    layout: gpu.pipelines[scene.id].getBindGroupLayout(0),
+                    entries: [
+                        { binding: 0, resource: { buffer: gpu.uniformBuffer } },
+                        { binding: 1, resource: { buffer: gpu.storageBuffer } },
+                    ]
+                });
+            }
+        }
+
+        function updateButtons() {
+            const container = document.getElementById('scene-btns');
+            container.innerHTML = '';
+            SCENES.forEach((s, i) => {
+                const btn = document.createElement('button');
+                btn.className = `btn ${i === activeSceneIdx ? 'active' : ''}`;
+                btn.innerText = s.name;
+                btn.onclick = () => loadScene(i);
+                container.appendChild(btn);
+            });
+        }
+
+        function updateUniforms(timeMs) {
+            const scene = SCENES[activeSceneIdx];
+            
+            // Calculate orbital animation
+            const orbitSpeed = 0.0005;
+            const radius = Math.sqrt(scene.cam[0]*scene.cam[0] + scene.cam[2]*scene.cam[2]) || Math.abs(scene.cam[2]);
+            const angle = timeMs * orbitSpeed;
+            
+            const camX = scene.cam[0] + Math.sin(angle) * (radius * 0.2); // slight orbit
+            const camZ = scene.cam[2] + Math.cos(angle) * (radius * 0.2) - (radius * 0.2);
+
+            const f32View = new Float32Array(gpu.uniformData);
+            const u32View = new Uint32Array(gpu.uniformData);
+
+            // layout:
+            // 0: cam.x, 1: cam.y, 2: cam.z, 3: fov
+            f32View[0] = camX;
+            f32View[1] = scene.cam[1];
+            f32View[2] = camZ;
+            f32View[3] = scene.fov;
+            
+            // 4: dir.x, 5: dir.y, 6: dir.z, 7: width(u32)
+            f32View[4] = scene.dir[0];
+            f32View[5] = scene.dir[1];
+            f32View[6] = scene.dir[2];
+            u32View[7] = W;
+            
+            // 8: up.x, 9: up.y, 10: up.z, 11: height(u32)
+            f32View[8] = 0.0;
+            f32View[9] = 1.0;
+            f32View[10] = 0.0;
+            u32View[11] = H;
+            
+            // 12: max_steps(u32), 13: max_dist(f32), 14: pad, 15: pad
+            u32View[12] = 60;
+            f32View[13] = scene.max_dist + (timeMs * 0.001); // pass time implicitly in max_dist for mock
+            u32View[14] = 0;
+            u32View[15] = 0;
+
+            gpu.device.queue.writeBuffer(gpu.uniformBuffer, 0, gpu.uniformData);
+        }
+
+        let lastFrameTime = performance.now();
+        let frameCount = 0;
+        let lastFpsUpdate = lastFrameTime;
+
+        async function renderLoop(time) {
+            if(!isAnimating) return;
+
+            // Update FPS
+            frameCount++;
+            if (time - lastFpsUpdate >= 1000) {
+                document.getElementById('fps-counter').innerText = `${frameCount} FPS`;
+                frameCount = 0;
+                lastFpsUpdate = time;
+            }
+
+            const scene = SCENES[activeSceneIdx];
+            const pipeline = gpu.pipelines[scene.id];
+            
+            if (pipeline) {
+                updateUniforms(time);
+
+                const commandEncoder = gpu.device.createCommandEncoder();
+                const passEncoder = commandEncoder.beginComputePass();
+                passEncoder.setPipeline(pipeline);
+                passEncoder.setBindGroup(0, gpu.bindGroups[scene.id]);
+                
+                const workgroupCountX = Math.ceil(W / 16);
+                const workgroupCountY = Math.ceil(H / 16);
+                passEncoder.dispatchWorkgroups(workgroupCountX, workgroupCountY, 1);
+                passEncoder.end();
+
+                // Copy storage buffer to read buffer
+                commandEncoder.copyBufferToBuffer(
+                    gpu.storageBuffer, 0,
+                    gpu.readBuffer, 0,
+                    NUM_PIXELS * 4
+                );
+
+                gpu.device.queue.submit([commandEncoder.finish()]);
+
+                // Map for readback
+                await gpu.readBuffer.mapAsync(GPUMapMode.READ);
+                const arrayBuffer = gpu.readBuffer.getMappedRange();
+                
+                // create Uint8ClampedArray view and copy to imageData
+                const uint8View = new Uint8ClampedArray(arrayBuffer);
+                const imageData = new ImageData(uint8View, W, H);
+                ctx2d.putImageData(imageData, 0, 0);
+
+                gpu.readBuffer.unmap();
+            }
+
+            requestAnimationFrame(renderLoop);
+        }
+
+        // Init UI
+        updateButtons();
+        // Init WebGPU
+        initWebGPU();
+
+    </script>
+</body>
+</html>

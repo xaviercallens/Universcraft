@@ -116,13 +116,17 @@ impl SymplecticFluidSolver {
         Self::compute_tait_pressure_with_params(&self.params, density)
     }
 
-    /// Applies Leray-Hopf Solenoidal Projection and Enstrophy Cap E_max
-    pub fn apply_leray_solenoidal_projection(velocity: Vec3, enstrophy_cap: f32) -> Vec3 {
+    /// Applies kinetic energy cap: truncates velocity if 0.5 * |v|² > max_ke.
+    /// NOTE: This is NOT a Leray-Hopf solenoidal projection (which requires a Poisson
+    /// pressure solve to enforce ∇·v = 0). This purely limits the velocity magnitude
+    /// to prevent finite-time blow-up. A proper Leray projection is tracked as a
+    /// future improvement (see Phase B1 in the improvement plan).
+    pub fn apply_kinetic_energy_cap(velocity: Vec3, max_ke: f32) -> Vec3 {
         let speed_sq = velocity.length_squared();
-        let enstrophy = speed_sq * 0.5;
+        let kinetic_energy = speed_sq * 0.5;
 
-        if enstrophy > enstrophy_cap {
-            let scale = (enstrophy_cap / enstrophy).sqrt();
+        if kinetic_energy > max_ke {
+            let scale = (max_ke / kinetic_energy).sqrt();
             velocity * scale
         } else {
             velocity
@@ -211,8 +215,8 @@ impl SymplecticFluidSolver {
             let accel = particle.force * (1.0 / particle.density.max(1.0));
             particle.velocity += accel * dt;
 
-            // Enforce Leray-Hopf solenoidal projection and enstrophy bound
-            particle.velocity = Self::apply_leray_solenoidal_projection(
+            // Enforce kinetic energy cap to prevent blow-up
+            particle.velocity = Self::apply_kinetic_energy_cap(
                 particle.velocity,
                 enstrophy_cap,
             );
@@ -278,7 +282,7 @@ impl SymplecticFluidSolver {
         self.particles.par_iter_mut().for_each(|particle| {
             let accel = particle.force * (1.0 / particle.density.max(1.0));
             particle.velocity += accel * dt;
-            particle.velocity = SymplecticFluidSolver::apply_leray_solenoidal_projection(particle.velocity, enstrophy_cap);
+            particle.velocity = SymplecticFluidSolver::apply_kinetic_energy_cap(particle.velocity, enstrophy_cap);
             particle.position += particle.velocity * dt;
         });
     }

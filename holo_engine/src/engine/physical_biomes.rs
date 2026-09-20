@@ -149,25 +149,39 @@ impl DuneGrid {
             }
         }
 
-        // 2. 1-Lipschitz Avalanche Relaxation (Enforce slope <= angle of repose)
-        for y in 1..(res - 1) {
-            for x in 1..(res - 1) {
-                let idx = y * res + x;
-                let neighbors = [
-                    (x + 1, y), (x.wrapping_sub(1), y),
-                    (x, y + 1), (x, y.wrapping_sub(1))
-                ];
-                for (nx, ny) in neighbors {
-                    if nx < res && ny < res {
-                        let n_idx = ny * res + nx;
-                        let diff = new_heights[idx] - new_heights[n_idx];
-                        if diff > max_slope {
-                            let excess = (diff - max_slope) * 0.5;
-                            new_heights[idx] -= excess;
-                            new_heights[n_idx] += excess;
+        // 2. 1-Lipschitz Avalanche Relaxation — Jacobi dual-buffer (no directional bias)
+        // Uses a separate read/write buffer to eliminate traversal-order dependency.
+        // Iterates until convergence or max iterations.
+        let max_avalanche_iters = 5;
+        for _pass in 0..max_avalanche_iters {
+            let read_heights = new_heights.clone(); // Read from previous state
+            let mut max_correction = 0.0f32;
+
+            for y in 1..(res - 1) {
+                for x in 1..(res - 1) {
+                    let idx = y * res + x;
+                    let neighbors = [
+                        (x + 1, y), (x.wrapping_sub(1), y),
+                        (x, y + 1), (x, y.wrapping_sub(1))
+                    ];
+                    for (nx, ny) in neighbors {
+                        if nx < res && ny < res {
+                            let n_idx = ny * res + nx;
+                            let diff = read_heights[idx] - read_heights[n_idx];
+                            if diff > max_slope {
+                                let excess = (diff - max_slope) * 0.5;
+                                new_heights[idx] -= excess;
+                                new_heights[n_idx] += excess;
+                                max_correction = max_correction.max(excess);
+                            }
                         }
                     }
                 }
+            }
+
+            // Converged: stop early if corrections are negligible
+            if max_correction < 1e-4 {
+                break;
             }
         }
 

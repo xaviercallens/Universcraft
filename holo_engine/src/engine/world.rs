@@ -44,7 +44,7 @@ impl TopologicalWorld {
                 particle_count = 120;
             }
             WorldPreset::QuantumFluidOcean | WorldPreset::OceanNavierStokes => {
-                physics_config.enstrophy_cap = 25.0;
+                physics_config.max_kinetic_energy = 25.0;
                 physics_config.leray_projection = true;
                 particle_count = 300;
             }
@@ -61,7 +61,7 @@ impl TopologicalWorld {
                 particle_count = 250;
             }
             WorldPreset::CloudsConvection => {
-                physics_config.enstrophy_cap = 15.0;
+                physics_config.max_kinetic_energy = 15.0;
                 particle_count = 350;
             }
             WorldPreset::GlacierIceSheet => {

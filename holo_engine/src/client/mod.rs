@@ -1,6 +1,8 @@
 pub mod terrain_generator;
 pub mod biome_generator;
 #[cfg(feature = "wgpu")]
+pub mod gpu_context;
+#[cfg(feature = "wgpu")]
 pub mod gpu_compute;
 #[cfg(feature = "wgpu")]
 pub mod gpu_deferred_renderer;

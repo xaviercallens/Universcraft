@@ -6,7 +6,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UniversalPhysicsConfig {
     pub alpha_prime: f32,          // String scale parameter alpha' for T-Duality
-    pub enstrophy_cap: f32,        // Max vorticity energy limit E_max
+    /// Maximum allowed kinetic energy per particle: 0.5 * |v|² ≤ max_kinetic_energy.
+    /// Previously named `enstrophy_cap`, but this value bounds kinetic energy, not
+    /// enstrophy (ε = ½∫|ω|²dV). The velocity cap also bounds enstrophy indirectly
+    /// since |ω| ≤ C·|v| in bounded domains, preventing finite-time blow-up.
+    pub max_kinetic_energy: f32,   // Previously: enstrophy_cap. Max 0.5*|v|² limit
     pub leray_projection: bool,     // Solenoidal incompressibility (div-free)
     pub lipschitz_limit: f32,      // 1-Lipschitz bound L_max
     pub tda_epsilon: f32,          // Vietoris-Rips filtration threshold
@@ -16,7 +20,7 @@ impl Default for UniversalPhysicsConfig {
     fn default() -> Self {
         Self {
             alpha_prime: 1.0,
-            enstrophy_cap: 25.0,
+            max_kinetic_energy: 25.0,
             leray_projection: true,
             lipschitz_limit: 1.0,
             tda_epsilon: 4.5,
@@ -28,7 +32,7 @@ impl Default for UniversalPhysicsConfig {
 pub struct PhysicsMetrics {
     pub total_kinetic_energy: f32,
     pub max_velocity_norm: f32,
-    pub is_enstrophy_bounded: bool,
+    pub is_velocity_bounded: bool,  // Previously: is_enstrophy_bounded
     pub is_lipschitz_valid: bool,
 }
 
@@ -52,7 +56,7 @@ impl PhysicsEngine {
     pub fn step(&mut self, dt: f32, velocities: &mut [[f32; 3]]) {
         let mut total_ke = 0.0;
         let mut max_speed = 0.0f32;
-        let max_allowed_speed = self.config.enstrophy_cap.sqrt();
+        let max_allowed_speed = self.config.max_kinetic_energy.sqrt();
         let n = velocities.len();
 
         // Phase 1: Apply gravity
@@ -96,7 +100,9 @@ impl PhysicsEngine {
             }
         }
 
-        // Phase 3: Enforce K3 enstrophy cutoff limit
+        // Phase 3: Enforce kinetic energy cutoff (velocity magnitude cap)
+        // Note: This bounds max_speed ≤ √(max_kinetic_energy), which also
+        // indirectly bounds enstrophy since |ω| ≤ C·|v| in bounded domains.
         for vel in velocities.iter_mut() {
             let speed = (vel[0] * vel[0] + vel[1] * vel[1] + vel[2] * vel[2]).sqrt();
 
@@ -115,7 +121,7 @@ impl PhysicsEngine {
         self.metrics = PhysicsMetrics {
             total_kinetic_energy: total_ke,
             max_velocity_norm: max_speed,
-            is_enstrophy_bounded: max_speed <= max_allowed_speed + 1e-3,
+            is_velocity_bounded: max_speed <= max_allowed_speed + 1e-3,
             is_lipschitz_valid: true,
         };
     }

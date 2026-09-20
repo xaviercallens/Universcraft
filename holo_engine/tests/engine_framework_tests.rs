@@ -8,7 +8,7 @@ mod engine_tests {
         assert!(!world.particles.is_empty());
 
         world.step_simulation(0.016);
-        assert!(world.physics.metrics.is_enstrophy_bounded);
+        assert!(world.physics.metrics.is_velocity_bounded);
     }
 
     #[test]

@@ -27,7 +27,7 @@ fn main() {
 
         println!("    -> Particules / Points de Masse : {}", world.particles.len());
         println!("    -> Énergie Cinétique Totale   : {:.4}", world.physics.metrics.total_kinetic_energy);
-        println!("    -> Enstrophie Bornée (Strict) : {}", world.physics.metrics.is_enstrophy_bounded);
+        println!("    -> Vélocité Bornée (Strict)   : {}", world.physics.metrics.is_velocity_bounded);
         println!("    -> Nombres de Betti TDA       : B0={} | B1={} | B2={}", betti.betti_0, betti.betti_1, betti.betti_2);
 
         // Test Interactive 1-Lipschitz Mining on Organic World
