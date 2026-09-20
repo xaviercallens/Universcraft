@@ -72,42 +72,28 @@ fn evaluate_boussinesq_cloud_density(p: vec3<f32>) -> f32 {
     }
 
     // Direct S^2 unit direction projection
-    let base_dir = p / r;
-    var dir = base_dir;
+    let dir = p / r;
     
-    // Create a localized topological vortex (Single Hurricane)
-    let vortex_center = normalize(vec3<f32>(0.2, 0.45, -0.75));
-    let dist_to_eye = length(dir - vortex_center);
+    // Coriolis distortion (spiral warping towards poles)
+    // The further from equator (dir.y == 0), the more spiral distortion
+    let coriolis = sign(dir.y) * pow(abs(dir.y), 1.5) * 2.5; 
+    let warp_dir = normalize(dir + vec3<f32>(cos(dir.y * 12.0), 0.0, sin(dir.y * 12.0)) * coriolis * 0.18);
     
-    // Tightly localized swirl distortion (radius 0.25 max)
-    let swirl_power = smoothstep(0.25, 0.0, dist_to_eye);
-    // Add small epsilon to prevent cross product with self from zeroing out
-    let tangent = normalize(cross(vortex_center, dir + vec3<f32>(0.001, 0.0, 0.0))); 
-    dir = normalize(dir + tangent * swirl_power * 1.2);
-    
-    // The eye of the hurricane (clear patch)
-    let eye_mask = smoothstep(0.01, 0.05, dist_to_eye);
+    // Add domain warping based on fbm for fractal storm shapes
+    let flow_distortion = fbm_s2(warp_dir * 3.5);
+    let final_dir = normalize(warp_dir + vec3<f32>(flow_distortion, flow_distortion * 0.5, -flow_distortion) * 0.20);
 
-    // Global weather bands (latitude-based sweeping structures)
-    let weather_band = smoothstep(0.0, 1.0, sin(dir.y * 6.0 + fbm_s2(dir * 1.5) * 2.0) * 0.5 + 0.5);
-
-    // Smooth, less dense global clouds
-    let macro_clusters = fbm_s2(dir * 2.5);
-    let micro_worley = 1.0 - worley_s2(dir * 9.0 + vec3<f32>(1.5, 0.4, 2.1));
+    // Smooth, global clouds
+    let macro_clusters = fbm_s2(final_dir * 3.8);
+    let micro_worley = 1.0 - worley_s2(final_dir * 14.0 + vec3<f32>(1.5, 0.4, 2.1));
     
-    // Threshold adjusted for sparser, fluffier distribution
-    var cumulus = smoothstep(0.55, 0.90, macro_clusters * 0.65 + micro_worley * 0.35 * weather_band);
+    // Latitude bands (equatorial storms, temperate calm, polar storms)
+    let weather_band = smoothstep(0.0, 1.0, 0.5 + 0.5 * cos(final_dir.y * 15.0));
 
-    // Punch out the eye
-    cumulus *= eye_mask;
-    
-    // Dense hurricane eye-wall
-    let eye_wall = smoothstep(0.02, 0.08, dist_to_eye) * (1.0 - smoothstep(0.08, 0.22, dist_to_eye));
-    cumulus = min(cumulus + eye_wall * macro_clusters * 1.2, 1.0);
+    // Threshold adjusted for sparser, distinct white storm bands like the Apollo photo
+    var cumulus = smoothstep(0.55, 0.85, macro_clusters * 0.70 + micro_worley * 0.30 * weather_band);
 
-    // General clouds are less dense (1.2), hurricane is dense (3.5)
-    let final_density = mix(1.2, 3.5, eye_wall);
-    return cumulus * alt_envelope * final_density;
+    return cumulus * alt_envelope * 2.0;
 }
 
 // Solenoidal Ocean Height & Normal on S^2 Surface
@@ -152,10 +138,13 @@ fn raymarch_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let c_atm = dot(ray_pos, ray_pos) - r_atmosphere_top * r_atmosphere_top;
     let delta_atm = b_proj * b_proj - c_atm;
 
-    // OPTICAL VACUUM CONSTRAINT: Rays missing the exosphere threshold return absolute pitch-black space (0.0)
+    // OPTICAL VACUUM CONSTRAINT: Rays missing the exosphere threshold return pitch-black space + Starfield
     if (delta_atm < 0.0) {
         let pixel_idx = global_id.x + global_id.y * earth_params.screen_width;
-        color_buffer[pixel_idx] = 255u << 24u; // Pure black space (no stars)
+        let star_hash = hash33_eo(ray_dir * 350.0);
+        let star_intensity = pow(star_hash.x, 90.0) * 2.0;
+        let star_val = u32(clamp(star_intensity * 255.0, 0.0, 255.0));
+        color_buffer[pixel_idx] = (255u << 24u) | (star_val << 16u) | (star_val << 8u) | star_val;
         return;
     }
 
@@ -238,24 +227,31 @@ fn raymarch_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
         // Direct S^2 Topological Projection for Land/Water Continents
         let raw_fbm = fbm_s2(dir_surf * 3.8) + fbm_s2(dir_surf * 15.0) * 0.15;
-        let land_mask = smoothstep(0.40, 0.52, raw_fbm);
+        // Raise threshold for more realistic ocean/land ratio (less land)
+        let land_mask = smoothstep(0.48, 0.58, raw_fbm);
+        
+        // Ice caps at poles
+        let pole_mask = smoothstep(0.82, 0.95, abs(dir_surf.y) + fbm_s2(dir_surf * 10.0) * 0.15);
         
         let ocean_normal = evaluate_solenoidal_ocean(dir_surf);
-        let normal = select(ocean_normal, dir_surf, land_mask > 0.5);
+        let normal = select(ocean_normal, dir_surf, land_mask > 0.5 || pole_mask > 0.5);
 
         let NdotL = max(dot(normal, sun_dir), 0.0);
 
-        // Deep Oceanic Beer-Lambert Absorption & Cyan/Cobalt Gradient
-        let ocean_base = mix(vec3<f32>(0.01, 0.10, 0.38), vec3<f32>(0.0, 0.35, 0.60), NdotL);
-        // More arid/chaotic land textures
-        let land_base = mix(vec3<f32>(0.08, 0.18, 0.06), vec3<f32>(0.4, 0.3, 0.15), fbm_s2(dir_surf * 25.0));
+        // Deep Navy Oceanic Beer-Lambert Absorption (realistic deep blue)
+        let ocean_base = mix(vec3<f32>(0.005, 0.02, 0.15), vec3<f32>(0.02, 0.15, 0.45), NdotL);
+        // More arid/realistic land textures
+        let land_base = mix(vec3<f32>(0.04, 0.12, 0.04), vec3<f32>(0.25, 0.20, 0.12), fbm_s2(dir_surf * 25.0));
+        // Ice cap color
+        let ice_base = vec3<f32>(0.8, 0.85, 0.9) * NdotL;
 
         var surf_albedo = mix(ocean_base, land_base, land_mask);
+        surf_albedo = mix(surf_albedo, ice_base, pole_mask);
 
         // Solenoidal Ocean Specular Sun Glint
         let H_vec = normalize(sun_dir - ray_dir);
         let spec_power = 180.0;
-        let specular = pow(max(dot(normal, H_vec), 0.0), spec_power) * (1.0 - land_mask) * 4.5;
+        let specular = pow(max(dot(normal, H_vec), 0.0), spec_power) * (1.0 - max(land_mask, pole_mask)) * 4.5;
 
         // Boussinesq Cloud Shadows on Ocean
         let shadow_p = p_surf + sun_dir * 0.4;
