@@ -107,7 +107,9 @@ def main():
     print(f"  [i]  WebGPU required: Use Chrome 113+ or Edge 113+")
     print(f"  [x]  Press Ctrl+C to stop\n")
 
-    with socketserver.TCPServer(("", PORT), HoloEngineHandler) as httpd:
+    socketserver.TCPServer.allow_reuse_address = True
+    with socketserver.ThreadingTCPServer(("", PORT), HoloEngineHandler) as httpd:
+        httpd.daemon_threads = True
         # Auto-open browser
         try:
             webbrowser.open(f"http://localhost:{PORT}")
