@@ -227,8 +227,8 @@ fn raymarch_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
         // Direct S^2 Topological Projection for Land/Water Continents
         let raw_fbm = fbm_s2(dir_surf * 3.8) + fbm_s2(dir_surf * 15.0) * 0.15;
-        // Raise threshold for more realistic ocean/land ratio (less land)
-        let land_mask = smoothstep(0.48, 0.58, raw_fbm);
+        // Raised threshold dramatically to restrict landmass to ~5% of surface
+        let land_mask = smoothstep(0.70, 0.75, raw_fbm);
         
         // Ice caps at poles
         let pole_mask = smoothstep(0.82, 0.95, abs(dir_surf.y) + fbm_s2(dir_surf * 10.0) * 0.15);
